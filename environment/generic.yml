@@ -1,0 +1,13 @@
+channels:
+  - pyviz
+  - conda-forge
+dependencies:
+  - black
+  - jupyter
+  - numpy
+  - pandas
+  - xarray
+  - netcdf4
+  - plotly
+  - scipy
+  - scikit-learn
