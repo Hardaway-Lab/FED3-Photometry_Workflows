@@ -1,3 +1,5 @@
+import itertools as itt
+
 import numpy as np
 import pandas as pd
 
@@ -48,3 +50,7 @@ def pool_events(ts, data, evt_range, rois, event_name="Key"):
             evt_df.append(dat_sub)
     evt_df = pd.concat(evt_df, ignore_index=True)
     return evt_df
+
+
+def enumerated_product(*args):
+    yield from zip(itt.product(*(range(len(x)) for x in args)), itt.product(*args))
