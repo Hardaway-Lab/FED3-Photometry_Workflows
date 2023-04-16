@@ -13,18 +13,22 @@ def plot_signals(data, rois, fps=30, default_window=(0, 10)):
     )
     t0 = dat_long["Timestamp"].min()
     dat_long["time (s)"] = (dat_long["Timestamp"] - t0) / fps
-    return px.line(
+    fig = px.line(
         dat_long,
         x="time (s)",
         y="raw",
         facet_row="roi",
+        facet_col="signal",
         color="signal",
         range_x=default_window,
+        facet_col_spacing=0.04,
     )
+    fig.update_yaxes(matches=None, showticklabels=True)
+    return fig
 
 
 def plot_events(evt_df):
-    return px.line(
+    fig = px.line(
         evt_df,
         x="evt_fm",
         y="Region0G",
@@ -32,6 +36,8 @@ def plot_events(evt_df):
         facet_row="event",
         facet_col="signal",
     )
+    fig.update_layout(height=180 * evt_df["event"].nunique())
+    return fig
 
 
 def facet_plotly(
