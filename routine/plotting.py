@@ -27,11 +27,11 @@ def plot_signals(data, rois, fps=30, default_window=(0, 10)):
     return fig
 
 
-def plot_events(evt_df):
+def plot_events(evt_df, roi):
     fig = px.line(
         evt_df,
         x="evt_fm",
-        y="Region0G",
+        y=roi,
         color="evt_id",
         facet_row="event",
         facet_col="signal",
