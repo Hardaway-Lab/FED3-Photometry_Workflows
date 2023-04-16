@@ -12,7 +12,7 @@ def exp2(x, a, b, c, d, e):
     return a * np.exp(b * x) + c * np.exp(d * x) + e
 
 
-def load_data(data_file, ts_file, discard_nfm, led_dict):
+def load_data(data_file, ts_file, discard_nfm, led_dict, roi_dict):
     data = pd.read_csv(data_file)
     ts = pd.read_csv(ts_file, names=["Timestamp", "Key", "Time"])
     data = data[data["FrameCounter"] > discard_nfm].copy()
@@ -22,6 +22,7 @@ def load_data(data_file, ts_file, discard_nfm, led_dict):
         data.groupby("signal", group_keys=False)
         .apply(cut_df, nrow=nfm)
         .reset_index(drop=True)
+        .rename(columns=roi_dict)
     )
     return data, ts
 
