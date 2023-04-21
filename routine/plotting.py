@@ -7,18 +7,22 @@ from plotly.subplots import make_subplots
 from .utilities import enumerated_product
 
 
-def plot_signals(data, rois, fps=30, default_window=(0, 10)):
+def plot_signals(data, rois, fps=30, default_window=(0, 10), group_dict=None):
     dat_long = data[["Timestamp", "signal"] + rois].melt(
         id_vars=["Timestamp", "signal"], var_name="roi", value_name="raw"
     )
     t0 = dat_long["Timestamp"].min()
     dat_long["time (s)"] = (dat_long["Timestamp"] - t0) / fps
+    if group_dict is not None:
+        dat_long["signal_group"] = dat_long["signal"].map(group_dict)
+    else:
+        dat_long["signal_group"] = dat_long["signal"]
     fig = px.line(
         dat_long,
         x="time (s)",
         y="raw",
         facet_row="roi",
-        facet_col="signal",
+        facet_col="signal_group",
         color="signal",
         range_x=default_window,
         facet_col_spacing=0.04,
@@ -27,10 +31,11 @@ def plot_signals(data, rois, fps=30, default_window=(0, 10)):
     return fig
 
 
-def plot_events(evt_df, roi):
+def plot_events(evt_df, roi, fps=30):
+    evt_df["time (s)"] = evt_df["evt_fm"] / fps
     fig = px.line(
         evt_df,
-        x="evt_fm",
+        x="time (s)",
         y=roi,
         color="evt_id",
         facet_row="event",
