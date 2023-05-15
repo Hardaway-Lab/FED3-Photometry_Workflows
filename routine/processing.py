@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import warnings
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
 from sklearn.linear_model import HuberRegressor
@@ -17,9 +18,14 @@ def photobleach_correction(data, rois, baseline_sig="415nm"):
         for sig in set(np.unique(data["signal"])) - set([baseline_sig])
     ]
     for roi in rois:
-        popt, pcov = curve_fit(
-            exp2, x, dat_base[roi], p0=(1.0, -1.0, 1.0, -1.0, dat_base[roi].mean())
-        )
+        dmax, dmin = dat_base[roi][:50].median(), dat_base[roi][-50:].median()
+        drg = dmax - dmin
+        p0 = (drg, -10, drg, 0.1, dmin - drg)
+        try:
+            popt, pcov = curve_fit(exp2, x, dat_base[roi], p0=p0, method="trf")
+        except:
+            warnings.warn("Biexponential fit failed")
+            popt = p0
         fit_415 = exp2(x, *popt)
         dat_fit[roi] = fit_415
         for sig_df in sig_df_ls:
