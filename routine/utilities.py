@@ -30,10 +30,13 @@ def load_data(data_file, ts_file, discard_nfm, led_dict, roi_dict):
 def pool_events(ts, data, evt_range, rois, event_name="Key"):
     ts["event"] = ts[event_name].astype(str)
     ts["evt_id"] = ts["Timestamp"].astype(str) + "-" + ts["event"]
-    data_join = data.merge(ts, on="Timestamp", how="left")
-    max_fm = data_join["FrameCounter"].max()
     evt_df = []
-    for _, dat_sig in data_join.groupby("signal"):
+    for _, dat_sig in data.groupby("signal"):
+        ts_sig = pd.merge_asof(ts, dat_sig, on="Timestamp")
+        dat_sig = dat_sig.merge(
+            ts_sig[["FrameCounter", "event", "evt_id"]], on="FrameCounter", how="left"
+        )
+        max_fm = dat_sig["FrameCounter"].max()
         for idx, row in dat_sig[dat_sig["evt_id"].notnull()].iterrows():
             fm = row["FrameCounter"]
             fm_range = tuple((np.array(evt_range) + fm).clip(0, max_fm))
