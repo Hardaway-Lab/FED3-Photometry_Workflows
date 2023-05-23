@@ -12,9 +12,11 @@ def exp2(x, a, b, c, d, e):
     return a * np.exp(b * x) + c * np.exp(d * x) + e
 
 
-def load_data(data_file, ts_file, discard_nfm, led_dict, roi_dict):
-    data = pd.read_csv(data_file)
-    ts = pd.read_csv(ts_file, names=["Timestamp", "Key", "Time"])
+def load_data(data_file, discard_nfm, led_dict, roi_dict):
+    if isinstance(data_file, pd.DataFrame):
+        data = data_file
+    else:
+        data = pd.read_csv(data_file)
     data = data[data["FrameCounter"] > discard_nfm].copy()
     data["signal"] = data["LedState"].map(led_dict)
     nfm = data.groupby("signal").size().min()
@@ -24,7 +26,12 @@ def load_data(data_file, ts_file, discard_nfm, led_dict, roi_dict):
         .reset_index(drop=True)
         .rename(columns=roi_dict)
     )
-    return data, ts
+    return data
+
+
+def load_ts(ts_file):
+    ts = pd.read_csv(ts_file, names=["Timestamp", "Key", "Time"])
+    return ts
 
 
 def pool_events(ts, data, evt_range, rois, event_name="Key"):
