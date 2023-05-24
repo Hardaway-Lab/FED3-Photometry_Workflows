@@ -2,6 +2,7 @@ import itertools as itt
 
 import numpy as np
 import pandas as pd
+import pandas.api.types as pdt
 
 
 def cut_df(df, nrow, sortby="Timestamp"):
@@ -30,8 +31,37 @@ def load_data(data_file, discard_nfm, led_dict, roi_dict):
 
 
 def load_ts(ts_file):
-    ts = pd.read_csv(ts_file, names=["Timestamp", "Key", "Time"])
-    return ts
+    if isinstance(ts_file, pd.DataFrame):
+        ts = ts_file
+    else:
+        ts = pd.read_csv(ts_file, header=None)
+    if len(ts.columns) == 1:
+        if ts.iloc[0, 0] == "ToString()":
+            ts = ts.iloc[1:].infer_objects().copy()
+        ts = df_to_numeric(ts)
+        ts.columns = ["ts"]
+        ts_type = "ts_behav"
+    elif len(ts.columns) == 2:
+        if ts.iloc[0, 0] == "Item1" and ts.iloc[0, 1] == "Item2":
+            ts = ts.iloc[1:].infer_objects().copy()
+        ts = df_to_numeric(ts)
+        if pdt.is_integer_dtype(ts[0]) and pdt.is_float_dtype(ts[1]):
+            ts.columns = ["fm_fp", "ts"]
+            ts_type = "ts_fp"
+        elif pdt.is_integer_dtype(ts[0]) and pdt.is_object_dtype(ts[1]):
+            ts.columns = ["fm_behav", "event"]
+            ts["event_type"] = "user"
+            ts_type = "ts_events"
+        else:
+            raise ValueError("Don't know how to handle TS")
+    elif len(ts.columns) == 3:
+        ts = df_to_numeric(ts)
+        ts.columns = ["ts", "event", "time"]
+        ts["event_type"] = "keydown"
+        ts_type = "ts_keydown"
+    else:
+        raise ValueError("Don't know how to handle TS")
+    return ts, ts_type
 
 
 def pool_events(ts, data, evt_range, rois, event_name="Key"):
@@ -65,3 +95,9 @@ def pool_events(ts, data, evt_range, rois, event_name="Key"):
 
 def enumerated_product(*args):
     yield from zip(itt.product(*(range(len(x)) for x in args)), itt.product(*args))
+
+
+def df_to_numeric(df):
+    for c in df.columns:
+        df[c] = pd.to_numeric(df[c], errors="ignore")
+    return df

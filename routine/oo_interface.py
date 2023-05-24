@@ -5,9 +5,10 @@ import pandas as pd
 from IPython.display import display
 from ipywidgets import Layout, widgets
 
-from routine.plotting import plot_signals
-from routine.processing import photobleach_correction
-from routine.utilities import load_data
+from .plotting import plot_signals
+from .processing import photobleach_correction
+from .ts_alignment import align_ts
+from .utilities import load_data
 
 
 class NPMBase:
@@ -182,3 +183,44 @@ class NPMProcess(NPMBase):
             fpath = os.path.join(ds_path, "{}.csv".format(sig))
             d[d["signal"] == sig].drop(columns=["signal"]).to_csv(fpath, index=False)
             print("data saved to {}".format(fpath))
+
+
+class NPMAlign(NPMBase):
+    def __init__(self, fig_path="./figs/process", out_path="./output/process") -> None:
+        super().__init__(fig_path, out_path)
+        self.ts_dict = dict()
+        self.data_align = None
+        print("Alignment initialized")
+
+    def set_ts(self, ts_dict: dict = None) -> None:
+        if ts_dict is None:
+            w_ts = widgets.FileUpload(
+                accept=".csv",
+                multiple=True,
+                description="Upload Timestamp Files",
+                tooltip="Select timestamps to align",
+                **self.wgt_opts,
+            )
+            w_ts.observe(self.on_ts, names="value")
+            display(w_ts)
+        else:
+            self.ts_dict = {k: pd.read_csv(t, header=None) for k, t in ts_dict.items()}
+
+    def on_ts(self, change) -> None:
+        for dfile in change["new"]:
+            dname = dfile["name"]
+            dat = dfile["content"].tobytes()
+            self.ts_dict[dname] = pd.read_csv(
+                io.BytesIO(dat), encoding="utf8", header=None
+            )
+
+    def align_data(self) -> None:
+        self.data_align, self.ts = align_ts(self.data, self.ts_dict)
+
+    def export_data(self) -> None:
+        assert self.data_align is not None, "Please align ts first!"
+        ds_path = os.path.join(self.out_path, "aligned")
+        os.makedirs(ds_path, exist_ok=True)
+        fpath = os.path.join(ds_path, "master.csv")
+        self.data_align.to_csv(fpath, index=False)
+        print("data saved to {}".format(fpath))
