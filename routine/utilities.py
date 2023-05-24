@@ -56,7 +56,7 @@ def load_ts(ts_file):
             raise ValueError("Don't know how to handle TS")
     elif len(ts.columns) == 3:
         ts = df_to_numeric(ts)
-        ts.columns = ["ts", "event", "time"]
+        ts.columns = ["ts_fp", "event", "time"]
         ts["event_type"] = "keydown"
         ts_type = "ts_keydown"
     else:

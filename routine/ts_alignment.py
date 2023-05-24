@@ -8,6 +8,7 @@ from .utilities import load_ts
 
 
 def align_ts(data, ts_files) -> None:
+    data = data.rename(columns={"Timestamp": "ts_fp", "FrameCounter": "fm_fp"})
     ts_dict = dict()
     for dname, dat in ts_files.items():
         dat, ts_type = load_ts(dat.copy())
@@ -18,11 +19,19 @@ def align_ts(data, ts_files) -> None:
                     "Multiple {} supplied but only one expected.".format(ts_type)
                 )
         ts_dict[ts_type] = dat
+    if "ts_keydown" in ts_dict:
+        ts_key = ts_dict.pop("ts_keydown")
+        ts_key = pd.merge_asof(
+            ts_key, data[["fm_fp", "ts_fp"]], on="ts_fp", direction="nearest"
+        )
+        data = data.merge(
+            ts_key[["fm_fp", "event", "event_type"]], on="fm_fp", how="outer"
+        )
     try:
         ts_fp = ts_dict.pop("ts_fp")
     except KeyError:
-        warnings.warn("No FP TS supplied, returning data without alignment")
-        return data
+        warnings.warn("No FP TS supplied, returning data without further alignment")
+        return data, ts_dict
     fm_diff = len(ts_fp) - len(data)
     if fm_diff != 0:
         diff_txt = (
@@ -31,14 +40,14 @@ def align_ts(data, ts_files) -> None:
             else "{} frames less".format(abs(fm_diff))
         )
         warnings.warn("FP timestamp file has {} than data file".format(diff_txt))
-    data = data.rename(columns={"FrameCounter": "fm_fp"}).merge(
-        ts_fp, on="fm_fp", how="left", validate="one_to_one"
-    )
+    data = data.merge(ts_fp, on="fm_fp", how="left", validate="one_to_one")
     try:
         ts_behav = ts_dict.pop("ts_behav")
     except KeyError:
-        warnings.warn("No Behavior TS supplied, returning data without alignment")
-        return data
+        warnings.warn(
+            "No Behavior TS supplied, returning data without further alignment"
+        )
+        return data, ts_dict
     ts_behav["fm_behav"] = np.arange(len(ts_behav))
     ts_behav = pd.merge_asof(
         ts_behav, data[["fm_fp", "ts"]], on="ts", direction="nearest"
