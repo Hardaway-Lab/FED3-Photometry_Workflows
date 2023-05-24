@@ -42,8 +42,8 @@ class NPMBase:
 
 
 class NPMProcess(NPMBase):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, fig_path="./figs/process", out_path="./output/process") -> None:
+        super().__init__(fig_path, out_path)
         self.param_nfm_discard = None
         self.param_led_dict = {7: "initial", 1: "415nm", 2: "470nm", 4: "560nm"}
         self.param_roi_dict = None
