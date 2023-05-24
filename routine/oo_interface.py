@@ -7,7 +7,7 @@ from ipywidgets import Layout, widgets
 
 from .plotting import plot_signals
 from .processing import photobleach_correction
-from .ts_alignment import align_ts
+from .ts_alignment import align_ts, label_bout
 from .utilities import load_data
 
 
@@ -215,6 +215,7 @@ class NPMAlign(NPMBase):
             )
 
     def align_data(self) -> None:
+        self.data = label_bout(self.data, "Stimulation")
         self.data_align, self.ts = align_ts(self.data, self.ts_dict)
 
     def export_data(self) -> None:

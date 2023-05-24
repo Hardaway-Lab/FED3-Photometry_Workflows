@@ -2,6 +2,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
+from scipy.ndimage import label
 
 from .utilities import load_ts
 
@@ -72,3 +73,9 @@ def align_ts(data, ts_files) -> None:
         .reset_index(drop=True)
     )
     return data, ts_dict
+
+
+def label_bout(data, name) -> pd.DataFrame:
+    lb, nlb = label(data[name])
+    data[name + "_label"] = lb
+    return data
