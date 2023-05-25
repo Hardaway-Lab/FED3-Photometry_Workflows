@@ -1,6 +1,7 @@
+import warnings
+
 import numpy as np
 import pandas as pd
-import warnings
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
 from sklearn.linear_model import HuberRegressor
@@ -17,6 +18,8 @@ def photobleach_correction(data, rois, baseline_sig="415nm"):
         data[data["signal"] == sig].copy()
         for sig in set(np.unique(data["signal"])) - set([baseline_sig])
     ]
+    for sig_df in sig_df_ls:
+        sig_df["signal"] = sig_df["signal"] + "-norm"
     for roi in rois:
         dmax, dmin = dat_base[roi][:50].median(), dat_base[roi][-50:].median()
         drg = dmax - dmin
@@ -31,7 +34,6 @@ def photobleach_correction(data, rois, baseline_sig="415nm"):
         fit_415 = exp2(x, *popt)
         dat_fit[roi] = fit_415
         for sig_df in sig_df_ls:
-            sig_df["signal"] = sig_df["signal"] + "-norm"
             model = HuberRegressor()
             model.fit(fit_415.reshape((-1, 1)), sig_df[roi])
             sig_df[roi] = sig_df[roi] - model.predict(fit_415.reshape((-1, 1)))
