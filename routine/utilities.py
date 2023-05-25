@@ -52,6 +52,10 @@ def load_ts(ts_file):
             ts.columns = ["fm_behav", "event"]
             ts["event_type"] = "user"
             ts_type = "ts_events"
+        elif pdt.is_float_dtype(ts[0]):
+            ts.columns = ["ts", "event"]
+            ts["event_type"] = "arduino"
+            ts_type = "ts_events"
         else:
             raise ValueError("Don't know how to handle TS")
     elif len(ts.columns) == 3:
