@@ -44,14 +44,14 @@ class NPMBase:
 
     def set_paths(self, fig_path=None, out_path=None) -> None:
         if fig_path is None:
-            lab = widgets.Label("Figure Path: ")
+            lab = widgets.Label("Figure Path: ", layout=Layout(width="75px"))
             fc = FileChooser(self.fig_path, show_only_dirs=True)
             fc.register_callback(self.on_figpath)
             display(widgets.HBox([lab, fc]))
         else:
             self.fig_path = fig_path
         if out_path is None:
-            lab = widgets.Label("Output Path: ")
+            lab = widgets.Label("Output Path: ", layout=Layout(width="75px"))
             fc = FileChooser(self.out_path, show_only_dirs=True)
             fc.register_callback(self.on_outpath)
             display(widgets.HBox([lab, fc]))
