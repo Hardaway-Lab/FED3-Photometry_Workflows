@@ -89,6 +89,8 @@ def align_ts(data, ts_files) -> None:
             )
             evts.append(dat[["fm_fp", "ts", "event", "event_type"]])
         print("aligned {}".format(dname))
+    if not len(evts) > 0:
+        return data, ts_dict
     evts = pd.concat(evts, ignore_index=True).sort_values("fm_fp")
     evts_dup = evts[evts["fm_fp"].duplicated(keep=False)]
     if len(evts_dup) > 0:
