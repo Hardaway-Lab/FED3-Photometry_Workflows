@@ -7,7 +7,7 @@ from plotly.subplots import make_subplots
 from .utilities import enumerated_product
 
 
-def plot_signals(data, rois, fps=30, default_window=(0, 600), group_dict=None):
+def plot_signals(data, rois, fps=30, default_window=None, group_dict=None):
     dat_long = data[["Timestamp", "signal"] + rois].melt(
         id_vars=["Timestamp", "signal"], var_name="roi", value_name="raw"
     )
@@ -27,7 +27,6 @@ def plot_signals(data, rois, fps=30, default_window=(0, 600), group_dict=None):
         range_x=default_window,
         facet_col_spacing=0.04,
     )
-
     fig.update_yaxes(matches=None, showticklabels=True)
     return fig
 
