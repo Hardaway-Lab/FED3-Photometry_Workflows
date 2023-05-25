@@ -2,6 +2,7 @@ import io
 import os
 
 import pandas as pd
+from ipyfilechooser import FileChooser
 from IPython.display import display
 from ipywidgets import Layout, widgets
 
@@ -40,6 +41,28 @@ class NPMBase:
     def on_upload(self, change) -> None:
         dat = change["new"][0]["content"].tobytes()
         self.data = pd.read_csv(io.BytesIO(dat), encoding="utf8")
+
+    def set_paths(self, fig_path=None, out_path=None) -> None:
+        if fig_path is None:
+            lab = widgets.Label("Figure Path: ")
+            fc = FileChooser(self.fig_path, show_only_dirs=True)
+            fc.register_callback(self.on_figpath)
+            display(widgets.HBox([lab, fc]))
+        else:
+            self.fig_path = fig_path
+        if out_path is None:
+            lab = widgets.Label("Output Path: ")
+            fc = FileChooser(self.out_path, show_only_dirs=True)
+            fc.register_callback(self.on_outpath)
+            display(widgets.HBox([lab, fc]))
+        else:
+            self.out_path = out_path
+
+    def on_figpath(self, fc) -> None:
+        self.fig_path = fc.selected_path
+
+    def on_outpath(self, fc) -> None:
+        self.out_path = fc.selected_path
 
 
 class NPMProcess(NPMBase):
