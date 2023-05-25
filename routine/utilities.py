@@ -64,31 +64,30 @@ def load_ts(ts_file):
     return ts, ts_type
 
 
-def pool_events(ts, data, evt_range, rois, event_name="Key"):
-    ts["event"] = ts[event_name].astype(str)
-    ts["evt_id"] = ts["Timestamp"].astype(str) + "-" + ts["event"]
+def pool_events(data, evt_range, rois, norm=True):
+    evt_idx = data[data["event"].notnull()].index
+    data.loc[evt_idx, "event"] = data.loc[evt_idx, "event"].astype(str)
+    data.loc[evt_idx, "evt_id"] = (
+        data.loc[evt_idx, "event"] + "-" + data.loc[evt_idx, "fm_fp"].astype(str)
+    )
+    max_fm = data["fm_fp"].max()
     evt_df = []
-    for _, dat_sig in data.groupby("signal"):
-        ts_sig = pd.merge_asof(ts, dat_sig, on="Timestamp")
-        dat_sig = dat_sig.merge(
-            ts_sig[["FrameCounter", "event", "evt_id"]], on="FrameCounter", how="left"
-        )
-        max_fm = dat_sig["FrameCounter"].max()
-        for idx, row in dat_sig[dat_sig["evt_id"].notnull()].iterrows():
-            fm = row["FrameCounter"]
-            fm_range = tuple((np.array(evt_range) + fm).clip(0, max_fm))
-            dat_sub = dat_sig[dat_sig["FrameCounter"].between(*fm_range)].copy()
-            dat_sub["evt_fm"] = dat_sub["FrameCounter"] - fm
-            dat_sub["event"] = row["event"]
-            dat_sub["evt_id"] = row["evt_id"]
+    for idx, row in data[data["evt_id"].notnull()].iterrows():
+        fm = row["fm_fp"]
+        fm_range = tuple((np.array(evt_range) + fm).clip(0, max_fm))
+        dat_sub = data[data["fm_fp"].between(*fm_range)].copy()
+        dat_sub["fm_evt"] = dat_sub["fm_fp"] - fm
+        dat_sub["event"] = row["event"]
+        dat_sub["evt_id"] = row["evt_id"]
+        if norm:
             for roi in rois:
-                mean = dat_sub.loc[dat_sub["evt_fm"] < 0, roi].mean()
-                std = dat_sub.loc[dat_sub["evt_fm"] < 0, roi].std()
+                mean = dat_sub.loc[dat_sub["fm_evt"] < 0, roi].mean()
+                std = dat_sub.loc[dat_sub["fm_evt"] < 0, roi].std()
                 if std > 0:
                     dat_sub[roi] = (dat_sub[roi] - mean) / std
                 else:
                     dat_sub[roi] = 0
-            evt_df.append(dat_sub)
+        evt_df.append(dat_sub)
     evt_df = pd.concat(evt_df, ignore_index=True)
     return evt_df
 

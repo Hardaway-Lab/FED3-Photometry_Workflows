@@ -32,15 +32,21 @@ def plot_signals(data, rois, fps=30, default_window=(0, 600), group_dict=None):
     return fig
 
 
-def plot_events(evt_df, roi, fps=30):
-    evt_df["Time (s)"] = evt_df["evt_fm"] / fps
+def plot_events(evt_df, rois, fps=30):
+    id_vars = ["fm_evt", "evt_id", "event"]
+    evt_df = (
+        evt_df[id_vars + rois]
+        .drop_duplicates()
+        .melt(id_vars=id_vars, var_name="roi", value_name="fluorescence")
+    )
+    evt_df["Time (s)"] = evt_df["fm_evt"] / fps
     fig = px.line(
         evt_df,
         x="Time (s)",
-        y=roi,
+        y="fluorescence",
         color="evt_id",
         facet_row="event",
-        facet_col="signal",
+        facet_col="roi",
     )
     fig.update_layout(height=180 * evt_df["event"].nunique())
     return fig

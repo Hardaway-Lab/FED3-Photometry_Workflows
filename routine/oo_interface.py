@@ -5,10 +5,10 @@ import pandas as pd
 from IPython.display import display
 from ipywidgets import Layout, widgets
 
-from .plotting import plot_signals
+from .plotting import plot_events, plot_signals
 from .processing import photobleach_correction
 from .ts_alignment import align_ts, label_bout
-from .utilities import load_data
+from .utilities import load_data, pool_events
 
 
 class NPMBase:
@@ -225,3 +225,66 @@ class NPMAlign(NPMBase):
         fpath = os.path.join(ds_path, "master.csv")
         self.data_align.to_csv(fpath, index=False)
         print("data saved to {}".format(fpath))
+
+
+class NPMPooling(NPMBase):
+    def __init__(self, fig_path="./figs/process", out_path="./output/process") -> None:
+        super().__init__(fig_path, out_path)
+        self.param_evt_range = None
+        print("Pooling initialized")
+
+    def set_evt_range(self, evt_range: tuple = None) -> None:
+        if evt_range is None:
+            txt_evt_range = widgets.Label(
+                "Number of Frames to Include Before and After Event"
+            )
+            w_evt_range = widgets.IntRangeSlider(
+                value=(-500, 500),
+                min=-1000,
+                max=1000,
+                step=1,
+                tooltip="Use the markers to specify the number of frames before and after each timestamp",
+                **self.wgt_opts,
+            )
+            self.param_evt_range = (-500, 500)
+            w_evt_range.observe(self.on_evt_range, names="value")
+            display(widgets.VBox([txt_evt_range, w_evt_range]))
+        else:
+            self.param_evt_range = evt_range
+
+    def on_evt_range(self, change) -> None:
+        self.param_evt_range = change["new"]
+
+    def set_roi(self, roi_dict: dict = None) -> None:
+        assert self.data is not None, "Please set data first!"
+        if roi_dict is None:
+            w_txt = widgets.Label("ROIs to analyze (CTRL/CMD click to Select Multiple)")
+            w_roi = widgets.SelectMultiple(
+                options=self.data.columns,
+                tooltip="Region1G Region2R etc",
+                **self.wgt_opts,
+            )
+            w_roi.observe(self.on_roi, names="value")
+            display(widgets.VBox([w_txt, w_roi]))
+        else:
+            self.param_roi_dict = roi_dict
+
+    def on_roi(self, change) -> None:
+        rois = change["new"]
+        self.param_roi_dict = {r: r for r in rois}
+
+    def pool_events(self) -> None:
+        self.evtdf = pool_events(
+            self.data, self.param_evt_range, list(self.param_roi_dict.values())
+        )
+        fig = plot_events(self.evtdf, list(self.param_roi_dict.values()))
+        fig.write_html(os.path.join(self.fig_path, "events.html"))
+        display(fig)
+
+    def export_data(self) -> None:
+        assert self.evtdf is not None, "Please pool events first!"
+        ds_path = os.path.join(self.out_path, "events")
+        os.makedirs(ds_path, exist_ok=True)
+        dpath = os.path.join(ds_path, "master.csv")
+        self.evtdf.to_csv(dpath, index=False)
+        print("data saved to {}".format(dpath))
