@@ -69,6 +69,7 @@ def load_ts(ts_file):
 
 
 def pool_events(data, evt_range, rois, norm=True):
+    assert "event" in data.columns, "Please align event timestamps first!"
     evt_idx = data[data["event"].notnull()].index
     data.loc[evt_idx, "event"] = data.loc[evt_idx, "event"].astype(str)
     data.loc[evt_idx, "evt_id"] = (
