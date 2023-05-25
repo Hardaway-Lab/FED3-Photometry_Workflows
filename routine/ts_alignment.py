@@ -25,7 +25,7 @@ def align_ts(data, ts_files) -> None:
     # add ts to fm_fp
     if "ts_fp" in ts_dict:
         ts_fp = ts_dict.pop("ts_fp")
-        fm_diff = len(ts_fp) - len(data)
+        fm_diff = int(ts_fp["fm_fp"].max()) - int(data["fm_fp"].max())
         if fm_diff != 0:
             diff_txt = (
                 "{} frames more".format(abs(fm_diff))
