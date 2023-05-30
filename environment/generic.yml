@@ -12,3 +12,5 @@ dependencies:
   - scikit-learn
   - ipywidgets
   - ipyfilechooser
+  - panel
+  - jupyterlab == 3
