@@ -3,4 +3,5 @@ __pycache__
 upload
 output
 figs
-data
+data/*
+!data/example
