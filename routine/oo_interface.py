@@ -2,6 +2,7 @@ import io
 import os
 
 import pandas as pd
+import panel as pn
 from ipyfilechooser import FileChooser
 from IPython.display import display
 from ipywidgets import Layout, widgets
@@ -24,35 +25,44 @@ class NPMBase:
         os.makedirs(self.fig_path, exist_ok=True)
         os.makedirs(self.out_path, exist_ok=True)
 
-    def set_data(self, dpath: str = None) -> None:
+    def set_data(self, dpath: str = None, source: str = "local") -> None:
         if dpath is None:
-            w_data = widgets.FileUpload(
-                accept=".csv",
-                multiple=False,
-                description="Upload Data File",
-                tooltip="Select data file to analyze",
-                **self.wgt_opts,
-            )
-            w_data.observe(self.on_upload, names="value")
-            display(w_data)
+            if source == "local":
+                lab = widgets.Label("Select Data: ", layout=Layout(width="75px"))
+                fc = FileChooser(".", **self.wgt_opts)
+                fc.register_callback(self.on_set_data_local)
+                display(widgets.HBox([lab, fc]))
+            elif source == "remote":
+                w_data = widgets.FileUpload(
+                    accept=".csv",
+                    multiple=False,
+                    description="Upload Data File",
+                    tooltip="Select data file to analyze",
+                    **self.wgt_opts,
+                )
+                w_data.observe(self.on_set_data_remote, names="value")
+                display(w_data)
         else:
             self.data = pd.read_csv(dpath)
 
-    def on_upload(self, change) -> None:
+    def on_set_data_remote(self, change) -> None:
         dat = change["new"][0]["content"].tobytes()
         self.data = pd.read_csv(io.BytesIO(dat), encoding="utf8")
+
+    def on_set_data_local(self, fc) -> None:
+        self.data = pd.read_csv(fc.selected)
 
     def set_paths(self, fig_path=None, out_path=None) -> None:
         if fig_path is None:
             lab = widgets.Label("Figure Path: ", layout=Layout(width="75px"))
-            fc = FileChooser(self.fig_path, show_only_dirs=True)
+            fc = FileChooser(self.fig_path, show_only_dirs=True, **self.wgt_opts)
             fc.register_callback(self.on_figpath)
             display(widgets.HBox([lab, fc]))
         else:
             self.fig_path = fig_path
         if out_path is None:
             lab = widgets.Label("Output Path: ", layout=Layout(width="75px"))
-            fc = FileChooser(self.out_path, show_only_dirs=True)
+            fc = FileChooser(self.out_path, show_only_dirs=True, **self.wgt_opts)
             fc.register_callback(self.on_outpath)
             display(widgets.HBox([lab, fc]))
         else:
@@ -217,27 +227,42 @@ class NPMAlign(NPMBase):
         self.data_align = None
         print("Alignment initialized")
 
-    def set_ts(self, ts_dict: dict = None) -> None:
+    def set_ts(self, ts_dict: dict = None, source: str = "local") -> None:
         if ts_dict is None:
-            w_ts = widgets.FileUpload(
-                accept=".csv",
-                multiple=True,
-                description="Upload Timestamp Files",
-                tooltip="Select timestamps to align",
-                **self.wgt_opts,
-            )
-            w_ts.observe(self.on_ts, names="value")
-            display(w_ts)
+            if source == "local":
+                fs = pn.widgets.FileSelector(
+                    directory=".",
+                    root_directory="/",
+                    only_files=True,
+                    name="Select Timestamp Files",
+                )
+                fs.param.watch(self.on_ts_local, ["value"], onlychanged=True)
+                display(fs)
+            elif source == "remote":
+                w_ts = widgets.FileUpload(
+                    accept=".csv",
+                    multiple=True,
+                    description="Upload Timestamp Files",
+                    tooltip="Select timestamps to align",
+                    **self.wgt_opts,
+                )
+                w_ts.observe(self.on_ts_remote, names="value")
+                display(w_ts)
         else:
             self.ts_dict = {k: pd.read_csv(t, header=None) for k, t in ts_dict.items()}
 
-    def on_ts(self, change) -> None:
+    def on_ts_remote(self, change) -> None:
         for dfile in change["new"]:
             dname = dfile["name"]
             dat = dfile["content"].tobytes()
             self.ts_dict[dname] = pd.read_csv(
                 io.BytesIO(dat), encoding="utf8", header=None
             )
+
+    def on_ts_local(self, event) -> None:
+        for dpath in event.new:
+            dname = os.path.split(dpath)[1]
+            self.ts_dict[dname] = pd.read_csv(dpath, header=None)
 
     def align_data(self) -> None:
         self.data = label_bout(self.data, "Stimulation")
