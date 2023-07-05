@@ -59,10 +59,16 @@ def load_ts(ts_file):
         else:
             raise ValueError("Don't know how to handle TS")
     elif len(ts.columns) == 3:
-        ts = df_to_numeric(ts)
-        ts.columns = ["ts_fp", "event", "time"]
-        ts["event_type"] = "keydown"
-        ts_type = "ts_keydown"
+        if ts.iloc[0, 2] == "PulseWidth":
+            ts = df_to_numeric(ts.iloc[1:].copy())
+            ts.columns = ["event", "ts_fp", "pulsewidth"]
+            ts["event_type"] = "fed"
+            ts_type = "ts_fed"
+        else:
+            ts = df_to_numeric(ts)
+            ts.columns = ["ts_fp", "event", "time"]
+            ts["event_type"] = "keydown"
+            ts_type = "ts_keydown"
     else:
         raise ValueError("Don't know how to handle TS")
     return ts, ts_type
