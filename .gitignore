@@ -5,3 +5,4 @@ output
 figs
 data/*
 !data/example
+.vscode
