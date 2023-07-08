@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import panel as pn
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -31,24 +32,45 @@ def plot_signals(data, rois, fps=30, default_window=None, group_dict=None):
     return fig
 
 
-def plot_events(evt_df, rois, fps=30):
+def plot_events(evt_df, rois, fps=30, tabs=None):
     id_vars = ["fm_evt", "evt_id", "event"]
+    if tabs is not None:
+        id_vars = list(set(id_vars).union(set([tabs])))
     evt_df = (
         evt_df[id_vars + rois]
         .drop_duplicates()
         .melt(id_vars=id_vars, var_name="roi", value_name="fluorescence")
     )
     evt_df["Time (s)"] = evt_df["fm_evt"] / fps
-    fig = px.line(
-        evt_df,
-        x="Time (s)",
-        y="fluorescence",
-        color="evt_id",
-        facet_row="event",
-        facet_col="roi",
-    )
-    fig.update_layout(height=180 * evt_df["event"].nunique())
-    return fig
+    if tabs is not None:
+        if tabs == "event":
+            facet_col = None
+        else:
+            facet_col = "event"
+        tb_ls = []
+        for tb_name, tb_df in evt_df.groupby(tabs):
+            fig = px.line(
+                tb_df,
+                x="Time (s)",
+                y="fluorescence",
+                color="evt_id",
+                facet_row="roi",
+                facet_col=facet_col,
+            )
+            fig.update_layout(height=180 * tb_df["roi"].nunique())
+            tb_ls.append((tb_name, pn.pane.Plotly(fig, sizing_mode="stretch_width")))
+        return pn.Tabs(*tb_ls, dynamic=True)
+    else:
+        fig = px.line(
+            evt_df,
+            x="Time (s)",
+            y="fluorescence",
+            color="evt_id",
+            facet_row="event",
+            facet_col="roi",
+        )
+        fig.update_layout(height=180 * evt_df["event"].nunique())
+        return fig
 
 
 def facet_plotly(

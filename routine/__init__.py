@@ -8,4 +8,4 @@ def _warning(message, category=UserWarning, filename="", lineno=-1, line=None):
 
 
 warnings.formatwarning = _warning
-pn.extension()
+pn.extension('plotly')
