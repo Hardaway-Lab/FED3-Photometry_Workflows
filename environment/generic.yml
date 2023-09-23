@@ -14,3 +14,4 @@ dependencies:
   - ipyfilechooser
   - panel
   - jupyterlab == 3
+  - openpyxl
