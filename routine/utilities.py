@@ -5,7 +5,7 @@ import pandas as pd
 import pandas.api.types as pdt
 
 
-def cut_df(df, nrow, sortby="Timestamp"):
+def cut_df(df, nrow, sortby="SystemTimestamp"):
     return df.sort_values(sortby).iloc[:nrow]
 
 
@@ -30,39 +30,38 @@ def load_data(data_file, discard_nfm, led_dict, roi_dict):
     return data
 
 
-def load_ts(ts_file):
-    if isinstance(ts_file, pd.DataFrame):
-        ts = ts_file
-    else:
-        ts = pd.read_csv(ts_file, header=None)
-    if len(ts.columns) == 1:
-        if ts.iloc[0, 0] == "ToString()":
-            ts = ts.iloc[1:].infer_objects().copy()
-        ts = df_to_numeric(ts)
-        ts.columns = ["ts"]
-        ts_type = "ts_behav"
-    elif len(ts.columns) == 2:
-        if ts.iloc[0, 0] == "Item1" and ts.iloc[0, 1] == "Item2":
-            ts = ts.iloc[1:].infer_objects().copy()
-        ts = df_to_numeric(ts)
-        if pdt.is_integer_dtype(ts[0]) and pdt.is_float_dtype(ts[1]):
-            ts.columns = ["fm_fp", "ts"]
-            ts_type = "ts_fp"
-        elif pdt.is_integer_dtype(ts[0]) and pdt.is_object_dtype(ts[1]):
+def load_ts(ts):
+    ts = df_to_numeric(ts)
+    if len(ts.columns) == 2:
+        if pdt.is_object_dtype(ts[0]) and pdt.is_float_dtype(ts[1]):
+            ts.columns = ["event", "ts"]
+            ts["event_type"] = "keydown"
+            ts_type = "ts_keydown"
+        elif pdt.is_integer_dtype(ts[0]) and pdt.is_float_dtype(ts[1]):
+            ts.columns = ["fm_behav", "ts"]
+            ts_type = "ts_behav"
+        elif pdt.is_integer_dtype(ts[0]) and (
+            pdt.is_object_dtype(ts[1]) or pdt.is_bool_dtype(ts[1])
+        ):
             ts.columns = ["fm_behav", "event"]
             ts["event_type"] = "user"
             ts_type = "ts_events"
-        elif pdt.is_float_dtype(ts[0]):
-            ts.columns = ["ts", "event"]
-            ts["event_type"] = "arduino"
-            ts_type = "ts_events"
         else:
             raise ValueError("Don't know how to handle TS")
-    elif len(ts.columns) == 3:
+    elif len(ts.columns) == 5:
+        if ts.iloc[0, 0] == "DigitalIOName":
+            ts = ts.iloc[1:].copy()
         ts = df_to_numeric(ts)
-        ts.columns = ["ts_fp", "event", "time"]
-        ts["event_type"] = "keydown"
-        ts_type = "ts_keydown"
+        ts.columns = ["io_name", "io_flag", "io_state", "ts_fp", "ts"]
+        ts["event"] = (
+            ts["io_name"].astype(str)
+            + "-"
+            + ts["io_flag"].astype(str)
+            + "-"
+            + ts["io_state"].astype(str)
+        )
+        ts["event_type"] = "arduino"
+        ts_type = "ts_arduino"
     else:
         raise ValueError("Don't know how to handle TS")
     return ts, ts_type

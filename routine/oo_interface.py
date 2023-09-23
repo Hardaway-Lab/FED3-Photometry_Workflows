@@ -60,6 +60,7 @@ class NPMBase:
             display(widgets.HBox([lab, fc]))
         else:
             self.fig_path = fig_path
+            os.makedirs(fig_path, exist_ok=True)
         if out_path is None:
             lab = widgets.Label("Output Path: ", layout=Layout(width="75px"))
             fc = FileChooser(self.out_path, show_only_dirs=True, **self.wgt_opts)
@@ -67,12 +68,15 @@ class NPMBase:
             display(widgets.HBox([lab, fc]))
         else:
             self.out_path = out_path
+            os.makedirs(out_path, exist_ok=True)
 
     def on_figpath(self, fc) -> None:
         self.fig_path = fc.selected_path
+        os.makedirs(self.fig_path, exist_ok=True)
 
     def on_outpath(self, fc) -> None:
         self.out_path = fc.selected_path
+        os.makedirs(self.out_path, exist_ok=True)
 
 
 class NPMProcess(NPMBase):
@@ -227,8 +231,8 @@ class NPMAlign(NPMBase):
         self.data_align = None
         print("Alignment initialized")
 
-    def set_ts(self, ts_dict: dict = None, source: str = "local") -> None:
-        if ts_dict is None:
+    def set_ts(self, ts_ls: list = None, source: str = "local") -> None:
+        if ts_ls is None:
             if source == "local":
                 fs = pn.widgets.FileSelector(
                     directory=".",
@@ -249,7 +253,9 @@ class NPMAlign(NPMBase):
                 w_ts.observe(self.on_ts_remote, names="value")
                 display(w_ts)
         else:
-            self.ts_dict = {k: pd.read_csv(t, header=None) for k, t in ts_dict.items()}
+            for ts_path in ts_ls:
+                ts_name, ts = self.load_ts(ts_path)
+                self.ts_dict[ts_name] = ts
 
     def on_ts_remote(self, change) -> None:
         for dfile in change["new"]:
@@ -261,11 +267,20 @@ class NPMAlign(NPMBase):
 
     def on_ts_local(self, event) -> None:
         for dpath in event.new:
-            dname = os.path.split(dpath)[1]
-            self.ts_dict[dname] = pd.read_csv(dpath, header=None)
+            ts_name, ts = self.load_ts(dpath)
+            self.ts_dict[ts_name] = ts
+
+    def load_ts(self, ts_path: str) -> pd.DataFrame:
+        ts_name = os.path.split(ts_path)[1]
+        if ts_name.endswith(".csv"):
+            return ts_name, pd.read_csv(ts_path, header=None)
+        elif ts_path.endswith(".xlsx"):
+            return ts_name, pd.read_excel(ts_path, header=None)
+        else:
+            raise NotImplementedError("Unable to read {}".format(ts_path))
 
     def align_data(self) -> None:
-        self.data = label_bout(self.data, "Stimulation")
+        # self.data = label_bout(self.data, "Stimulation") # depracated
         self.data_align, self.ts = align_ts(self.data, self.ts_dict)
 
     def export_data(self) -> None:

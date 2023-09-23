@@ -8,7 +8,13 @@ from .utilities import load_ts
 
 
 def align_ts(data, ts_files) -> None:
-    data = data.rename(columns={"Timestamp": "ts_fp", "FrameCounter": "fm_fp"})
+    data = data.rename(
+        columns={
+            "SystemTimestamp": "ts_fp",
+            "FrameCounter": "fm_fp",
+            "ComputerTimestamp": "ts",
+        }
+    )
     # load input ts
     ts_dict = dict()
     for dname, dat in ts_files.items():
@@ -37,7 +43,6 @@ def align_ts(data, ts_files) -> None:
     # align fm_behav basd on ts
     if "ts_behav" in ts_dict:
         ts_behav = ts_dict.pop("ts_behav")
-        ts_behav["fm_behav"] = np.arange(len(ts_behav))
         if "ts" in data.columns:
             ts_behav = pd.merge_asof(
                 ts_behav, data[["fm_fp", "ts"]], on="ts", direction="nearest"
