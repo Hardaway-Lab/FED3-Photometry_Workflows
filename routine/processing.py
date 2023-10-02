@@ -10,10 +10,14 @@ from .utilities import exp2
 
 
 def photobleach_correction(data, rois, baseline_sig="415nm"):
-    dat_base = data[data["signal"] == baseline_sig].copy()
-    x = np.linspace(0, 1, len(dat_base))
-    dat_fit = dat_base.copy()
+    # fit baseline
+    base_roi = rois[0]  # TODO: make this flexible
+    dat_fit = data.loc[data["signal"] == baseline_sig].copy()
     dat_fit["signal"] = baseline_sig + "-fit"
+    dat_fit[list(set(rois) - set([base_roi]))] = np.nan
+    x = np.linspace(0, 1, len(dat_fit))
+    baseline = fit_exp2(dat_fit[base_roi], x)
+    dat_fit[base_roi] = baseline
     sig_df_ls = [
         data[data["signal"] == sig].copy()
         for sig in set(np.unique(data["signal"])) - set([baseline_sig])
@@ -21,24 +25,24 @@ def photobleach_correction(data, rois, baseline_sig="415nm"):
     for sig_df in sig_df_ls:
         sig_df["signal"] = sig_df["signal"] + "-norm"
     for roi in rois:
-        dmax, dmin = dat_base[roi][:50].median(), dat_base[roi][-50:].median()
-        drg = dmax - dmin
-        p0 = (drg, -10, drg, 0.1, dmin - drg)
-        try:
-            popt, pcov = curve_fit(
-                exp2, x, dat_base[roi], p0=p0, method="trf", ftol=1e-6
-            )
-        except:
-            warnings.warn("Biexponential fit failed")
-            popt = p0
-        fit_415 = exp2(x, *popt)
-        dat_fit[roi] = fit_415
         for sig_df in sig_df_ls:
             model = HuberRegressor()
-            model.fit(fit_415.reshape((-1, 1)), sig_df[roi])
-            sig_df[roi] = sig_df[roi] - model.predict(fit_415.reshape((-1, 1)))
+            model.fit(baseline.reshape((-1, 1)), sig_df[roi])
+            sig_df[roi] = sig_df[roi] - model.predict(baseline.reshape((-1, 1)))
     data_norm = pd.concat([data, dat_fit] + sig_df_ls, ignore_index=True)
     return data_norm
+
+
+def fit_exp2(a, x):
+    dmax, dmin = a[:50].median(), a[-50:].median()
+    drg = dmax - dmin
+    p0 = (drg, -10, drg, 0.1, dmin - drg)
+    try:
+        popt, pcov = curve_fit(exp2, x, a, p0=p0, method="trf", ftol=1e-6, maxfev=1e4)
+    except:
+        warnings.warn("Biexponential fit failed")
+        popt = p0
+    return exp2(x, *popt)
 
 
 def compute_dff(data, rois, sigs=["415nm", "470nm"]):

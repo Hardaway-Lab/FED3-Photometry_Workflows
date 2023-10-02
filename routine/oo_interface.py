@@ -201,12 +201,7 @@ class NPMProcess(NPMBase):
         fig = plot_signals(
             self.data_norm,
             list(self.param_roi_dict.values()),
-            group_dict={
-                "415nm": "415nm",
-                "415nm-fit": "415nm",
-                "470nm": "470nm",
-                "470nm-norm": "470nm",
-            },
+            group_dict=lambda s: s.split("-")[0],
         )
         fig.write_html(os.path.join(self.fig_path, "photobleaching_correction.html"))
         nroi = len(self.param_roi_dict)
