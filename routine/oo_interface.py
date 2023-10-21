@@ -182,7 +182,7 @@ class NPMProcess(NPMBase):
         fig = plot_signals(
             self.data, list(self.param_roi_dict.values()), default_window=(0, 10)
         )
-        fig.write_html(os.path.join(self.fig_path, "raw_signals.html"))
+        # fig.write_html(os.path.join(self.fig_path, "raw_signals.html"))
         nroi = len(self.param_roi_dict)
         fig.update_layout(height=350 * nroi)
         display(fig)
