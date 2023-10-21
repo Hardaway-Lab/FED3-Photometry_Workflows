@@ -6,6 +6,7 @@ import panel as pn
 from ipyfilechooser import FileChooser
 from IPython.display import display
 from ipywidgets import Layout, widgets
+import itertools as itt
 
 from .plotting import plot_events, plot_signals
 from .processing import photobleach_correction
@@ -147,34 +148,38 @@ class NPMProcess(NPMBase):
                 w.observe(self.on_roi_name, names="value")
                 display(w)
         else:
-            self.param_roi_dict = roi_dict
+            self.param_roi_dict = {k: v.replace("-", "_") for k, v in roi_dict.items()}
 
     def on_roi_name(self, change) -> None:
         k, v = change["owner"].placeholder, change["new"]
-        self.param_roi_dict[k] = v
+        self.param_roi_dict[k] = v.replace("-", "_")
 
-    def set_baseline(self, base_sig: str = None):
+    def set_baseline(self, base_sig: dict = None):
         assert self.data is not None, "Please set data first!"
         if base_sig is None:
-            w_base = widgets.ToggleButtons(
-                value="415nm",
-                options=["415nm", "470nm", "560nm"],
-                description="Channel to use as Reference Signal:",
-                disabled=False,
-                button_style="",
-                tooltips=[
-                    "Best for most recordings",
-                    "Alternative for certain neurotransmitter sensors",
-                    "Alternative for certain red-shifted sensors",
-                ],
-                **self.wgt_opts,
-            )
-            w_base.observe(self.on_baseline, names="value")
-            self.param_base_sig = "415nm"
-            display(w_base)
+            rois = list(self.param_roi_dict.values())
+            sigs = list(set(self.param_led_dict.values()) - set(["initial"]))
+            roi_sig = list(itt.product(rois, sigs))
+            for key_r, key_s in roi_sig:
+                opts = [("-".join(rs), {(key_r, key_s): rs}) for rs in roi_sig]
+                opts = opts + [("No correction", {(key_r, key_s): None})]
+                w_base = widgets.Dropdown(
+                    description="{}-{}: ".format(key_r, key_s),
+                    options=opts,
+                    value={(key_r, key_s): None},
+                    **self.wgt_opts,
+                )
+                w_base.observe(self.on_baseline, names="value")
+                self.param_base_sig = dict()
+                display(w_base)
+        else:
+            self.param_base_sig = base_sig
 
     def on_baseline(self, change) -> None:
-        self.param_base_sig = change["new"]
+        self.param_base_sig.update(change["new"])
+        self.param_base_sig = {
+            k: v for k, v in self.param_base_sig.items() if v is not None
+        }
 
     def load_data(self) -> None:
         assert self.data is not None, "Please set data first!"
