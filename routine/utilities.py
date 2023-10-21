@@ -86,7 +86,7 @@ def load_ts(ts_file):
     return ts, ts_type
 
 
-def pool_events(data, evt_range, rois, norm=True):
+def pool_events(data, evt_range, rois, norm=None):
     assert "event" in data.columns, "Please align event timestamps first!"
     evt_idx = data[data["event"].notnull()].index
     data.loc[evt_idx, "event"] = data.loc[evt_idx, "event"].astype(str)
@@ -102,14 +102,24 @@ def pool_events(data, evt_range, rois, norm=True):
         dat_sub["fm_evt"] = dat_sub["fm_fp"] - fm
         dat_sub["event"] = row["event"]
         dat_sub["evt_id"] = row["evt_id"]
-        if norm:
+        if norm is not None:
             for roi in rois:
-                mean = dat_sub.loc[dat_sub["fm_evt"] < 0, roi].mean()
-                std = dat_sub.loc[dat_sub["fm_evt"] < 0, roi].std()
-                if std > 0:
-                    dat_sub[roi] = (dat_sub[roi] - mean) / std
+                dat_norm = dat_sub[roi] - dat_sub[roi].min()
+                mean = dat_norm.loc[dat_sub["fm_evt"] < 0].mean()
+                if norm == "std":
+                    denom = dat_norm.loc[dat_sub["fm_evt"] < 0].std()
+                elif norm == "dff":
+                    denom = mean
                 else:
-                    dat_sub[roi] = 0
+                    raise NotImplementedError(
+                        "Norm method has to be ('std', 'dff'), got '{}' instead.".format(
+                            norm
+                        )
+                    )
+                if denom > 0:
+                    dat_sub[roi + "-norm"] = (dat_norm - mean) / denom
+                else:
+                    dat_sub[roi + "-norm"] = np.NaN
         evt_df.append(dat_sub)
     evt_df = pd.concat(evt_df, ignore_index=True)
     return evt_df

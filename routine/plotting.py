@@ -32,8 +32,10 @@ def plot_signals(data, rois, fps=30, default_window=None, group_dict=None):
     return fig
 
 
-def plot_events(evt_df, rois, fps=30, tabs=None):
+def plot_events(evt_df, rois, fps=30, tabs=None, norm=None):
     id_vars = ["fm_evt", "evt_id", "event"]
+    if norm is not None:
+        rois = [r + "-norm" for r in rois]
     if tabs is not None:
         id_vars = list(set(id_vars).union(set([tabs])))
     evt_df = (

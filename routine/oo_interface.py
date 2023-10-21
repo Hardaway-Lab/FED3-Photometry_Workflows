@@ -323,11 +323,16 @@ class NPMPooling(NPMBase):
         rois = change["new"]
         self.param_roi_dict = {r: r for r in rois}
 
-    def pool_events(self, tabs=None) -> None:
+    def pool_events(self, tabs=None, **kwargs) -> None:
         self.evtdf = pool_events(
-            self.data, self.param_evt_range, list(self.param_roi_dict.values())
+            self.data,
+            self.param_evt_range,
+            list(self.param_roi_dict.values()),
+            **kwargs,
         )
-        fig = plot_events(self.evtdf, list(self.param_roi_dict.values()), tabs=tabs)
+        fig = plot_events(
+            self.evtdf, list(self.param_roi_dict.values()), tabs=tabs, **kwargs
+        )
         if tabs is None:
             fig.write_html(os.path.join(self.fig_path, "events.html"))
         display(fig)
