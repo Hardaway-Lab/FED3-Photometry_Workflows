@@ -26,7 +26,7 @@ def photobleach_correction(data, rois, baseline_sig="415nm"):
         p0 = (drg, -10, drg, 0.1, dmin - drg)
         try:
             popt, pcov = curve_fit(
-                exp2, x, dat_base[roi], p0=p0, method="trf", ftol=1e-6
+                exp2, x, dat_base[roi], p0=p0, method="trf", ftol=1e-4, maxfev=50000
             )
         except:
             warnings.warn("Biexponential fit failed")
