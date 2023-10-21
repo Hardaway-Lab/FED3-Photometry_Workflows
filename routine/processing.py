@@ -9,27 +9,58 @@ from sklearn.linear_model import HuberRegressor
 from .utilities import exp2
 
 
-def photobleach_correction(data, rois, baseline_sig="415nm"):
+def photobleach_correction(data, baseline_sig, rois=None):
+    # auto set rois
+    if rois is None:
+        rois = list(
+            set([r[0] for r in baseline_sig.keys()])
+            | set([r[0] for r in baseline_sig.values()])
+        )
+    # making sure signal exists
+    base_dict = dict()
+    for (roi, sig), (base_roi, base_sig) in baseline_sig.items():
+        if len(data.loc[data["signal"] == sig, roi]) == 0:
+            continue
+        if len(data.loc[data["signal"] == base_sig, base_roi]) == 0:
+            warnings.warn(
+                "Cannot find signal '{}' in roi '{}', skipping correction for signal '{}' roi '{}'".format(
+                    base_sig, base_roi, sig, roi
+                )
+            )
+            continue
+        base_dict[(roi, sig)] = (base_roi, base_sig)
     # fit baseline
-    base_roi = rois[0]  # TODO: make this flexible
-    dat_fit = data.loc[data["signal"] == baseline_sig].copy()
-    dat_fit["signal"] = baseline_sig + "-fit"
-    dat_fit[list(set(rois) - set([base_roi]))] = np.nan
-    x = np.linspace(0, 1, len(dat_fit))
-    baseline = fit_exp2(dat_fit[base_roi], x)
-    dat_fit[base_roi] = baseline
-    sig_df_ls = [
-        data[data["signal"] == sig].copy()
-        for sig in set(np.unique(data["signal"])) - set([baseline_sig])
-    ]
-    for sig_df in sig_df_ls:
-        sig_df["signal"] = sig_df["signal"] + "-norm"
-    for roi in rois:
-        for sig_df in sig_df_ls:
-            model = HuberRegressor()
-            model.fit(baseline.reshape((-1, 1)), sig_df[roi])
-            sig_df[roi] = sig_df[roi] - model.predict(baseline.reshape((-1, 1)))
-    data_norm = pd.concat([data, dat_fit] + sig_df_ls, ignore_index=True)
+    base_dfs = dict()
+    for base_roi, base_sig in set(base_dict.values()):
+        if base_sig in base_dfs:
+            base_df = base_dfs[base_sig]
+        else:
+            base_df = data.loc[data["signal"] == base_sig].copy()
+            base_df["signal"] = base_sig + "-fit"
+            base_df[rois] = np.nan
+        dat_fit = data.loc[data["signal"] == base_sig, base_roi]
+        x = np.linspace(0, 1, len(dat_fit))
+        base_fit = fit_exp2(dat_fit, x)
+        base_df[base_roi] = base_fit
+        base_dfs[base_sig] = base_df
+    # correct signals
+    sig_dfs = dict()
+    for (roi, sig), (base_roi, base_sig) in base_dict.items():
+        if sig in sig_dfs:
+            sig_df = sig_dfs[sig]
+        else:
+            sig_df = data.loc[data["signal"] == sig].copy()
+            sig_df["signal"] = sig + "-norm"
+            sig_df[rois] = np.nan
+        dat_sig = data.loc[data["signal"] == sig, roi]
+        baseline = np.array(base_dfs[base_sig][base_roi])
+        model = HuberRegressor()
+        model.fit(baseline.reshape((-1, 1)), dat_sig)
+        sig_df[roi] = dat_sig - model.predict(baseline.reshape((-1, 1)))
+        sig_dfs[sig] = sig_df
+    data_norm = pd.concat(
+        [data] + list(base_dfs.values()) + list(sig_dfs.values()), ignore_index=True
+    )
     return data_norm
 
 

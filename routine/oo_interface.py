@@ -196,7 +196,7 @@ class NPMProcess(NPMBase):
         assert self.param_roi_dict is not None, "Please set ROIs first!"
         assert self.param_base_sig is not None, "Please set baseline signal first!"
         self.data_norm = photobleach_correction(
-            self.data, list(self.param_roi_dict.values()), self.param_base_sig
+            self.data, self.param_base_sig, rois=list(self.param_roi_dict.values())
         )
         fig = plot_signals(
             self.data_norm,

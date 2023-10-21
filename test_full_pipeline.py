@@ -12,7 +12,13 @@ IN_TS = {
     ],
     "d6": ["./data/example/d6/In5.xlsx"],
 }
-PARAM_ROIS = {"G0": "G0", "G1": "G1"}
+PARAM_ROIS = {"G0": "Green0", "G1": "Green1", "R10": "Red10", "R11": "Red11"}
+PARAM_BASE = {
+    ("Green0", "470nm"): ("Green0", "415nm"),
+    ("Green1", "470nm"): ("Green1", "415nm"),
+    ("Red10", "560nm"): ("Red10", "560nm"),
+    ("Red11", "560nm"): ("Red11", "560nm"),
+}
 OUT_PATH = "./output/test"
 FIG_PATH = "./figs/test"
 
@@ -24,7 +30,7 @@ for ds_name, dpath in IN_DPATH.items():
     process.set_roi(PARAM_ROIS)
     process.set_roi_names()
     process.set_nfm_discard()
-    process.set_baseline()
+    process.set_baseline(PARAM_BASE)
     process.load_data()
     process.photobleach_correction()
     process.export_data()
