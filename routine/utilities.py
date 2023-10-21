@@ -4,6 +4,16 @@ import numpy as np
 import pandas as pd
 import pandas.api.types as pdt
 
+PULSE_DICT = {
+    0.001: "pellet retrieval",
+    0.002: "left poke",
+    0.003: "right poke",
+    0.004: "initiation of FED motor to deliver a pellet",
+    0.005: "fall of pellet into magazine",
+    0.006: "auditory cue",
+    0.007: "LED strip activated",
+}
+
 
 def cut_df(df, nrow, sortby="Timestamp"):
     return df.sort_values(sortby).iloc[:nrow]
@@ -63,6 +73,8 @@ def load_ts(ts_file):
             ts = df_to_numeric(ts.iloc[1:].copy())
             ts.columns = ["event", "ts_fp", "pulsewidth"]
             ts["event_type"] = "fed"
+            ts["pulsewidth"] = ts["pulsewidth"].round(3)
+            ts["event"] = ts["pulsewidth"].map(PULSE_DICT)
             ts_type = "ts_fed"
         else:
             ts = df_to_numeric(ts)

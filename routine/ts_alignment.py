@@ -13,9 +13,8 @@ def align_ts(data, ts_files) -> None:
     ts_dict = dict()
     for dname, dat in ts_files.items():
         dat, ts_type = load_ts(dat.copy())
-        print(ts_type)
         if ts_type == "ts_fed":
-            dat["event"] = dname[:4] + "-" + dat["event"].astype(int).astype(str)
+            dat["event"] = dname[:4] + "-" + dat["event"]
         print("Interpreting {} as {}".format(dname, ts_type))
         if ts_type == "ts_behav" or ts_type == "ts_fp":
             if ts_type in ts_dict.keys():
