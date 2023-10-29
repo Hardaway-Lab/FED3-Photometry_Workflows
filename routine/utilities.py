@@ -104,7 +104,7 @@ def pool_events(data, evt_range, rois, norm=None):
         dat_sub["evt_id"] = row["evt_id"]
         if norm is not None:
             for roi in rois:
-                dat_norm = dat_sub[roi] - dat_sub[roi].min()
+                dat_norm = min_transform(dat_sub[roi])
                 mean = dat_norm.loc[dat_sub["fm_evt"] < 0].mean()
                 if norm == "std":
                     denom = dat_norm.loc[dat_sub["fm_evt"] < 0].std()
@@ -133,3 +133,7 @@ def df_to_numeric(df):
     for c in df.columns:
         df[c] = pd.to_numeric(df[c], errors="ignore")
     return df
+
+
+def min_transform(a):
+    return a - np.nanmin(a)

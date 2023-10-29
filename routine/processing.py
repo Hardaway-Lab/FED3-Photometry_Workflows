@@ -6,10 +6,10 @@ from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
 from sklearn.linear_model import HuberRegressor
 
-from .utilities import exp2
+from .utilities import exp2, min_transform
 
 
-def photobleach_correction(data, rois, baseline_sig="415nm"):
+def photobleach_correction(data, rois, baseline_sig="415nm", min_trans=False):
     dat_base = data[data["signal"] == baseline_sig].copy()
     x = np.linspace(0, 1, len(dat_base))
     dat_fit = dat_base.copy()
@@ -37,6 +37,8 @@ def photobleach_correction(data, rois, baseline_sig="415nm"):
             model = HuberRegressor()
             model.fit(fit_415.reshape((-1, 1)), sig_df[roi])
             sig_df[roi] = sig_df[roi] - model.predict(fit_415.reshape((-1, 1)))
+            if min_trans:
+                sig_df[roi] = min_transform(sig_df[roi])
     data_norm = pd.concat([data, dat_fit] + sig_df_ls, ignore_index=True)
     return data_norm
 
