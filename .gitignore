@@ -4,5 +4,5 @@ upload
 output
 figs
 data/*
-!data/example
+!data/FearConditioning
 .vscode
