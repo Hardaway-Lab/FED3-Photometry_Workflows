@@ -8,7 +8,7 @@ from IPython.display import display
 from ipywidgets import Layout, widgets
 
 from .plotting import plot_events, plot_signals
-from .processing import photobleach_correction
+from .processing import moving_average_filter, photobleach_correction
 from .ts_alignment import align_ts, label_bout
 from .utilities import load_data, pool_events
 
@@ -82,6 +82,7 @@ class NPMProcess(NPMBase):
         self.param_led_dict = {7: "initial", 1: "415nm", 2: "470nm", 4: "560nm"}
         self.param_roi_dict = None
         self.param_base_sig = None
+        self.param_ma_wnd = None
         self.data_norm = None
         print("Process initialized")
 
@@ -172,6 +173,26 @@ class NPMProcess(NPMBase):
     def on_baseline(self, change) -> None:
         self.param_base_sig = change["new"]
 
+    def set_ma_wnd(self, wnd: int = None) -> None:
+        if wnd is None:
+            w_txt = widgets.Label("Filter window size")
+            w_wnd = widgets.IntSlider(
+                min=5,
+                value=20,
+                max=50,
+                step=1,
+                tooltip="Size of moving average filter window (in frames)",
+                **self.wgt_opts,
+            )
+            self.param_ma_wnd = 20
+            w_wnd.observe(self.on_ma_wnd, names="value")
+            display(widgets.VBox([w_txt, w_wnd]))
+        else:
+            self.param_ma_wnd = wnd
+
+    def on_ma_wnd(self, change) -> None:
+        self.param_ma_wnd = int(change["new"])
+
     def load_data(self) -> None:
         assert self.data is not None, "Please set data first!"
         assert self.param_roi_dict is not None, "Please set ROIs first!"
@@ -208,6 +229,19 @@ class NPMProcess(NPMBase):
         nroi = len(self.param_roi_dict)
         fig.update_layout(height=350 * nroi)
         display(fig)
+
+    def moving_filter(self, wnd=None, mode="same", apply_to=["470nm-norm"]) -> None:
+        if wnd is None:
+            wnd = self.param_ma_wnd
+        for sig in apply_to:
+            for roi in list(self.param_roi_dict.values()):
+                self.data_norm.loc[
+                    self.data_norm["signal"] == sig, roi
+                ] = moving_average_filter(
+                    self.data_norm.loc[self.data_norm["signal"] == sig, roi],
+                    wnd=wnd,
+                    mode=mode,
+                )
 
     def export_data(self, sigs=["415nm", "470nm-norm"]) -> None:
         assert self.data_norm is not None, "Please process data first!"

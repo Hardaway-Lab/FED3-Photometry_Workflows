@@ -86,3 +86,7 @@ def find_pks(data, rois, prominence, freq_wd, sigs=None):
             dat_sig[roi + "-freq"] = dat_sig[roi + "-pks"].rolling(freq_wd).sum()
         res_ls.append(dat_sig)
     return pd.concat(res_ls, ignore_index=True)
+
+
+def moving_average_filter(x, wnd, mode="same"):
+    return np.convolve(x, np.ones(wnd) / wnd, mode=mode)
