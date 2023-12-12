@@ -85,6 +85,7 @@ def pool_events(
             evt_ts in data.columns
         ), "column '{}' not found in data, cannot find bout".format(evt_ts)
         data["evt_id"] = np.nan
+        data["evt_id"] = data["evt_id"].astype("object")
         for evt, evt_df in data.loc[evt_idx].groupby("event"):
             tdiff = evt_df[evt_ts].diff().fillna(evt_sep + 1)
             sep = tdiff > evt_sep
