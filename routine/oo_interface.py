@@ -322,6 +322,32 @@ class NPMPooling(NPMBase):
     def on_evt_range(self, change) -> None:
         self.param_evt_range = change["new"]
 
+    def set_evt_sep(self, evt_sep: float = None) -> None:
+        if evt_sep is None:
+            w_txt = widgets.Label("Minimum seperation between events")
+            w_evt_sep = widgets.FloatSlider(min=0, value=1, max=10, **self.wgt_opts)
+            self.param_evt_sep = 1
+            w_evt_sep.observe(self.on_evt_sep, names="value")
+            display(widgets.VBox([w_txt, w_evt_sep]))
+        else:
+            self.param_evt_sep = evt_sep
+
+    def on_evt_sep(self, change) -> None:
+        self.param_evt_sep = int(change["new"])
+
+    def set_evt_duration(self, evt_duration: float = None) -> None:
+        if evt_duration is None:
+            w_txt = widgets.Label("Minimum duration events")
+            w_evt_dur = widgets.FloatSlider(min=0, value=1, max=10, **self.wgt_opts)
+            self.param_evt_duration = 1
+            w_evt_dur.observe(self.on_evt_dur, names="value")
+            display(widgets.VBox([w_txt, w_evt_dur]))
+        else:
+            self.param_evt_duration = evt_duration
+
+    def on_evt_dur(self, change) -> None:
+        self.param_evt_duration = int(change["new"])
+
     def set_roi(self, roi_dict: dict = None) -> None:
         assert self.data is not None, "Please set data first!"
         if roi_dict is None:
