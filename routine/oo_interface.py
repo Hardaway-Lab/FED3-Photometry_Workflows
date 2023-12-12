@@ -1,4 +1,5 @@
 import io
+import itertools as itt
 import os
 
 import pandas as pd
@@ -6,7 +7,6 @@ import panel as pn
 from ipyfilechooser import FileChooser
 from IPython.display import display
 from ipywidgets import Layout, widgets
-import itertools as itt
 
 from .plotting import plot_events, plot_signals
 from .processing import photobleach_correction
@@ -296,6 +296,8 @@ class NPMPooling(NPMBase):
     def __init__(self, fig_path="./figs/process", out_path="./output/process") -> None:
         super().__init__(fig_path, out_path)
         self.param_evt_range = None
+        self.param_evt_sep = 1
+        self.param_evt_duration = 1
         print("Pooling initialized")
 
     def set_evt_range(self, evt_range: tuple = None) -> None:
@@ -340,7 +342,11 @@ class NPMPooling(NPMBase):
 
     def pool_events(self) -> None:
         self.evtdf = pool_events(
-            self.data, self.param_evt_range, list(self.param_roi_dict.values())
+            self.data,
+            self.param_evt_range,
+            list(self.param_roi_dict.values()),
+            self.param_evt_sep,
+            self.param_evt_duration,
         )
         fig = plot_events(self.evtdf, list(self.param_roi_dict.values()))
         fig.write_html(os.path.join(self.fig_path, "events.html"))
