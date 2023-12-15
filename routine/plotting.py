@@ -125,8 +125,8 @@ def construct_layout(row_crd, col_crd, row_name="", col_name="", **kwargs):
 
 def plot_peaks(data, rois, fps=30, default_window=None):
     sigs = data["signal"].unique()
-    t0 = data["Timestamp"].min()
-    data["t"] = (data["Timestamp"] - t0) / fps
+    t0 = data["SystemTimestamp"].min()
+    data["t"] = (data["SystemTimestamp"] - t0) / fps
     fig, layout = construct_layout(rois, sigs, "roi", "signal", shared_xaxes=True)
     for (roi, sig), ly in layout.groupby(["row_label", "col_label"]):
         dat = data[data["signal"] == sig]
@@ -145,18 +145,19 @@ def plot_peaks(data, rois, fps=30, default_window=None):
                 row=ly["row"] + 1,
                 col=ly["col"] + 1,
             )
-            fig.add_trace(
-                go.Scatter(
-                    x=dat["t"],
-                    y=dat[roi + "-freq"],
-                    mode="lines",
-                    name="freq",
-                    legendgroup="freq",
-                    line={"color": "grey"},
-                ),
-                row=ly["row"] + 1,
-                col=ly["col"] + 1,
-            )
+            if roi + "-freq" in dat.columns:
+                fig.add_trace(
+                    go.Scatter(
+                        x=dat["t"],
+                        y=dat[roi + "-freq"],
+                        mode="lines",
+                        name="freq",
+                        legendgroup="freq",
+                        line={"color": "grey"},
+                    ),
+                    row=ly["row"] + 1,
+                    col=ly["col"] + 1,
+                )
             fig.add_trace(
                 go.Scatter(
                     x=pks["t"],

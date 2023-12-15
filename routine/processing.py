@@ -105,7 +105,7 @@ def compute_dff(data, rois, sigs=["415nm", "470nm"]):
     return pd.concat([data] + res_ls, ignore_index=True)
 
 
-def find_pks(data, rois, prominence, freq_wd, sigs=None):
+def find_pks(data, rois, prominence, freq_wd=None, sigs=None):
     if sigs is not None:
         data = data[data["signal"].isin(sigs)].copy()
     res_ls = []
@@ -116,6 +116,7 @@ def find_pks(data, rois, prominence, freq_wd, sigs=None):
             pvec = np.zeros_like(dat, dtype=bool)
             pvec[pks] = 1
             dat_sig[roi + "-pks"] = pvec
-            dat_sig[roi + "-freq"] = dat_sig[roi + "-pks"].rolling(freq_wd).sum()
+            if freq_wd is not None:
+                dat_sig[roi + "-freq"] = dat_sig[roi + "-pks"].rolling(freq_wd).sum()
         res_ls.append(dat_sig)
     return pd.concat(res_ls, ignore_index=True)
