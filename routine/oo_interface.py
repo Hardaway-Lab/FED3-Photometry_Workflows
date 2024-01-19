@@ -1,4 +1,5 @@
 import io
+import itertools as itt
 import os
 
 import pandas as pd
@@ -6,10 +7,9 @@ import panel as pn
 from ipyfilechooser import FileChooser
 from IPython.display import display
 from ipywidgets import Layout, widgets
-import itertools as itt
 
-from .plotting import plot_events, plot_signals
-from .processing import photobleach_correction
+from .plotting import plot_events, plot_peaks, plot_signals
+from .processing import find_pks, photobleach_correction
 from .ts_alignment import align_ts, label_bout
 from .utilities import load_data, pool_events
 
@@ -84,6 +84,7 @@ class NPMProcess(NPMBase):
     def __init__(self, fig_path="./figs/process", out_path="./output/process") -> None:
         super().__init__(fig_path, out_path)
         self.param_nfm_discard = None
+        self.param_pk_prominence = None
         self.param_led_dict = {7: "initial", 1: "415nm", 2: "470nm", 4: "560nm"}
         self.param_roi_dict = None
         self.param_base_sig = None
@@ -112,6 +113,25 @@ class NPMProcess(NPMBase):
 
     def on_nfm(self, change) -> None:
         self.param_nfm_discard = int(change["new"])
+
+    def set_pk_prominence(self, prom: int = None) -> None:
+        if prom is None:
+            w_txt = widgets.Label("Peak Prominence")
+            w_pk = widgets.FloatSlider(
+                min=0,
+                value=0.1,
+                max=3,
+                step=0.001,
+                **self.wgt_opts,
+            )
+            self.param_pk_prominence = 0.1
+            w_pk.observe(self.on_pk_prominence, names="value")
+            display(widgets.VBox([w_txt, w_pk]))
+        else:
+            self.param_pk_prominence = prom
+
+    def on_pk_prominence(self, change) -> None:
+        self.param_pk_prominence = change["new"]
 
     def set_roi(self, roi_dict: dict = None) -> None:
         assert self.data is not None, "Please set data first!"
@@ -209,6 +229,19 @@ class NPMProcess(NPMBase):
             group_dict=lambda s: s.split("-")[0],
         )
         fig.write_html(os.path.join(self.fig_path, "photobleaching_correction.html"))
+        nroi = len(self.param_roi_dict)
+        fig.update_layout(height=350 * nroi)
+        display(fig)
+
+    def find_peaks(self) -> None:
+        self.data_norm = find_pks(
+            self.data_norm,
+            rois=list(self.param_roi_dict.values()),
+            prominence=self.param_pk_prominence,
+            sigs=["470nm-norm"],
+        )
+        fig = plot_peaks(self.data_norm, rois=list(self.param_roi_dict.values()))
+        fig.write_html(os.path.join(self.fig_path, "peaks.html"))
         nroi = len(self.param_roi_dict)
         fig.update_layout(height=350 * nroi)
         display(fig)
