@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
+from scipy.stats import zscore
 from sklearn.linear_model import HuberRegressor
 
 from .utilities import exp2
@@ -48,16 +49,22 @@ def photobleach_correction(data, baseline_sig, rois=None):
     for (roi, sig), (base_roi, base_sig) in base_dict.items():
         if sig in sig_dfs:
             sig_df = sig_dfs[sig]
+            norm_df = sig_df.loc[sig_df["signal"] == sig + "-norm"]
+            zs_df = sig_df.loc[sig_df["signal"] == sig + "-norm-zs"]
         else:
-            sig_df = data.loc[data["signal"] == sig].copy()
-            sig_df["signal"] = sig + "-norm"
-            sig_df[rois] = np.nan
+            norm_df = data.loc[data["signal"] == sig].copy()
+            norm_df["signal"] = sig + "-norm"
+            norm_df[rois] = np.nan
+            zs_df = data.loc[data["signal"] == sig].copy()
+            zs_df["signal"] = sig + "-norm-zs"
+            zs_df[rois] = np.nan
         dat_sig = data.loc[data["signal"] == sig, roi]
         baseline = np.array(base_dfs[base_sig][base_roi])
         model = HuberRegressor()
         model.fit(baseline.reshape((-1, 1)), dat_sig)
-        sig_df[roi] = dat_sig - model.predict(baseline.reshape((-1, 1)))
-        sig_dfs[sig] = sig_df
+        norm_df[roi] = dat_sig - model.predict(baseline.reshape((-1, 1)))
+        zs_df[roi] = zscore(norm_df[roi])
+        sig_dfs[sig] = pd.concat([norm_df, zs_df])
     data_norm = pd.concat(
         [data] + list(base_dfs.values()) + list(sig_dfs.values()), ignore_index=True
     )

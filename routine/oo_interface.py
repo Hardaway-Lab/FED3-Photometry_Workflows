@@ -246,7 +246,7 @@ class NPMProcess(NPMBase):
         fig.update_layout(height=350 * nroi)
         display(fig)
 
-    def export_data(self, sigs=["415nm", "470nm-norm"]) -> None:
+    def export_data(self, sigs=["415nm", "470nm-norm", "470nm-norm-zs"]) -> None:
         assert self.data_norm is not None, "Please process data first!"
         d = self.data_norm
         ds_path = os.path.join(self.out_path, "signals")
