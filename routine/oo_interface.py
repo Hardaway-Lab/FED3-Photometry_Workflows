@@ -238,7 +238,7 @@ class NPMProcess(NPMBase):
             self.data_norm,
             rois=list(self.param_roi_dict.values()),
             prominence=self.param_pk_prominence,
-            sigs=["470nm-norm"],
+            sigs=["470nm-norm-zs"],
         )
         fig = plot_peaks(self.data_norm, rois=list(self.param_roi_dict.values()))
         fig.write_html(os.path.join(self.fig_path, "peaks.html"))
