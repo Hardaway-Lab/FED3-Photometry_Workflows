@@ -49,8 +49,8 @@ def photobleach_correction(data, baseline_sig, rois=None):
     for (roi, sig), (base_roi, base_sig) in base_dict.items():
         if sig in sig_dfs:
             sig_df = sig_dfs[sig]
-            norm_df = sig_df.loc[sig_df["signal"] == sig + "-norm"]
-            zs_df = sig_df.loc[sig_df["signal"] == sig + "-norm-zs"]
+            norm_df = sig_df.loc[sig_df["signal"] == sig + "-norm"].copy()
+            zs_df = sig_df.loc[sig_df["signal"] == sig + "-norm-zs"].copy()
         else:
             norm_df = data.loc[data["signal"] == sig].copy()
             norm_df["signal"] = sig + "-norm"
