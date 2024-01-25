@@ -240,7 +240,10 @@ class NPMProcess(NPMBase):
             prominence=self.param_pk_prominence,
             sigs=["470nm-norm-zs"],
         )
-        fig = plot_peaks(self.data_norm, rois=list(self.param_roi_dict.values()))
+        fig = plot_peaks(
+            self.data_norm[self.data_norm["signal"] == "470nm-norm-zs"],
+            rois=list(self.param_roi_dict.values()),
+        )
         fig.write_html(os.path.join(self.fig_path, "peaks.html"))
         nroi = len(self.param_roi_dict)
         fig.update_layout(height=350 * nroi)
