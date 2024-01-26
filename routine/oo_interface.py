@@ -241,7 +241,7 @@ class NPMProcess(NPMBase):
             sigs=["470nm-norm-zs"],
         )
         fig = plot_peaks(
-            self.data_norm[self.data_norm["signal"] == "470nm-norm-zs"],
+            self.data_norm[self.data_norm["signal"] == "470nm-norm-zs"].copy(),
             rois=list(self.param_roi_dict.values()),
         )
         fig.write_html(os.path.join(self.fig_path, "peaks.html"))
