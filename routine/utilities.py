@@ -13,12 +13,14 @@ def exp2(x, a, b, c, d, e):
     return a * np.exp(b * x) + c * np.exp(d * x) + e
 
 
-def load_data(data_file, discard_nfm, led_dict, roi_dict):
+def load_data(data_file, discard_time, led_dict, roi_dict):
     if isinstance(data_file, pd.DataFrame):
         data = data_file
     else:
         data = pd.read_csv(data_file)
-    data = data[data["FrameCounter"] > discard_nfm].copy()
+    data = data[
+        data["SystemTimestamp"] > data["SystemTimestamp"].min() + discard_time
+    ].copy()
     data["signal"] = data["LedState"].map(led_dict)
     nfm = data.groupby("signal").size().min()
     data = (

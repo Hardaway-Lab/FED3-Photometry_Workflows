@@ -83,7 +83,7 @@ class NPMBase:
 class NPMProcess(NPMBase):
     def __init__(self, fig_path="./figs/process", out_path="./output/process") -> None:
         super().__init__(fig_path, out_path)
-        self.param_nfm_discard = None
+        self.param_discard_time = None
         self.param_pk_prominence = None
         self.param_led_dict = {7: "initial", 1: "415nm", 2: "470nm", 4: "560nm"}
         self.param_roi_dict = None
@@ -91,28 +91,28 @@ class NPMProcess(NPMBase):
         self.data_norm = None
         print("Process initialized")
 
-    def set_nfm_discard(self, nfm: int = None) -> None:
+    def set_discard_time(self, discard_time: float = None) -> None:
         assert self.data is not None, "Please set data first!"
-        if nfm is None:
+        if discard_time is None:
             w_txt = widgets.Label(
-                "Number of Frames to Discard from Beginning of Recording"
+                "Number of Seconds to Discard from Beginning of Recording"
             )
-            w_nfm = widgets.IntSlider(
+            w_nfm = widgets.FloatSlider(
                 min=0,
                 value=0,
-                max=self.data["FrameCounter"].max(),
-                step=1,
-                tooltip="Cropping data points at the beginning of the recording can improve curve fitting. 100 frames is a good start",
+                max=10,
+                step=0.01,
+                tooltip="Cropping data points at the beginning of the recording can improve curve fitting.",
                 **self.wgt_opts,
             )
-            self.param_nfm_discard = 0
-            w_nfm.observe(self.on_nfm, names="value")
+            self.param_discard_time = 0
+            w_nfm.observe(self.on_discard, names="value")
             display(widgets.VBox([w_txt, w_nfm]))
         else:
-            self.param_nfm_discard = nfm
+            self.param_discard_time = discard_time
 
-    def on_nfm(self, change) -> None:
-        self.param_nfm_discard = int(change["new"])
+    def on_discard(self, change) -> None:
+        self.param_discard_time = float(change["new"])
 
     def set_pk_prominence(self, prom: int = None) -> None:
         if prom is None:
@@ -204,9 +204,9 @@ class NPMProcess(NPMBase):
     def load_data(self) -> None:
         assert self.data is not None, "Please set data first!"
         assert self.param_roi_dict is not None, "Please set ROIs first!"
-        assert self.param_nfm_discard is not None, "Please set frames to discard first!"
+        assert self.param_discard_time is not None, "Please set time to discard first!"
         self.data = load_data(
-            self.data, self.param_nfm_discard, self.param_led_dict, self.param_roi_dict
+            self.data, self.param_discard_time, self.param_led_dict, self.param_roi_dict
         )
         fig = plot_signals(
             self.data, list(self.param_roi_dict.values()), default_window=(0, 10)
