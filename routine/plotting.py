@@ -138,11 +138,13 @@ def construct_layout(row_crd=None, col_crd=None, row_name="", col_name="", **kwa
     return fig, layout
 
 
-def plot_peaks(data, rois, fps=30, default_window=None):
+def plot_peaks(data, rois, ts_col="SystemTimestamp", default_window=None):
     sigs = data["signal"].unique()
-    t0 = data["SystemTimestamp"].min()
-    data["t"] = (data["SystemTimestamp"] - t0) / fps
-    fig, layout = construct_layout(rois, sigs, "roi", "signal", shared_xaxes=True)
+    t0 = data[ts_col].min()
+    data["t"] = data[ts_col] - t0
+    fig, layout = construct_layout(
+        rois, sigs, "roi", "signal", shared_xaxes=True, x_title="Time (s)"
+    )
     for (roi, sig), ly in layout.groupby(["row_label", "col_label"]):
         dat = data[data["signal"] == sig]
         pks = dat[dat[roi + "-pks"]]
