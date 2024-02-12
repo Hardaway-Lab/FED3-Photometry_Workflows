@@ -69,22 +69,53 @@ def load_ts(ts):
     return ts, ts_type
 
 
-def pool_events(data, evt_range, rois, norm=True):
+def pool_events(
+    data,
+    evt_range,
+    rois,
+    evt_sep=None,
+    evt_duration=None,
+    evt_ts="ts_fp",
+    norm=True,
+):
     assert "event" in data.columns, "Please align event timestamps first!"
+    assert "fm_fp" in data.columns, "Missing photometry frame index"
     evt_idx = data[data["event"].notnull()].index
     data.loc[evt_idx, "event"] = data.loc[evt_idx, "event"].astype(str)
-    data.loc[evt_idx, "evt_id"] = (
-        data.loc[evt_idx, "event"] + "-" + data.loc[evt_idx, "fm_fp"].astype(str)
-    )
+    if evt_ts is not None:
+        assert (
+            evt_ts in data.columns
+        ), "column '{}' not found in data, cannot find bout".format(evt_ts)
+        data["evt_id"] = np.nan
+        data["evt_id"] = data["evt_id"].astype("object")
+        for evt, evt_df in data.loc[evt_idx].groupby("event"):
+            tdiff = evt_df[evt_ts].diff().fillna(evt_sep + 1)
+            sep = tdiff > evt_sep
+            sep_idx = sep[sep].index
+            for start_idx, end_idx in zip(
+                sep_idx, np.append(sep_idx[1:] - 1, evt_df.index[-1])
+            ):
+                seg = evt_df.loc[start_idx:end_idx]
+                if seg[evt_ts].max() - seg[evt_ts].min() > evt_duration:
+                    data.loc[start_idx:end_idx, "evt_id"] = (
+                        evt + "-" + seg["fm_fp"].min().astype(str)
+                    )
+    else:
+        data.loc[evt_idx, "evt_id"] = (
+            data.loc[evt_idx, "event"] + "-" + data.loc[evt_idx, "fm_fp"].astype(str)
+        )
     max_fm = data["fm_fp"].max()
     evt_df = []
-    for idx, row in data[data["evt_id"].notnull()].iterrows():
-        fm = row["fm_fp"]
-        fm_range = tuple((np.array(evt_range) + fm).clip(0, max_fm))
+    for evt_id, seg in data[data["evt_id"].notnull()].groupby("evt_id"):
+        fms = np.array(seg["fm_fp"])
+        fm0, fm1 = fms[0], fms[-1]
+        fm_range = tuple(
+            (np.array([fm0 + evt_range[0], fm1 + evt_range[1]])).clip(0, max_fm)
+        )
         dat_sub = data[data["fm_fp"].between(*fm_range)].copy()
-        dat_sub["fm_evt"] = dat_sub["fm_fp"] - fm
-        dat_sub["event"] = row["event"]
-        dat_sub["evt_id"] = row["evt_id"]
+        dat_sub["fm_evt"] = dat_sub["fm_fp"] - fm0
+        dat_sub["event"] = seg["event"].dropna().unique().item()
+        dat_sub["evt_id"] = evt_id
         if norm:
             for roi in rois:
                 mean = dat_sub.loc[dat_sub["fm_evt"] < 0, roi].mean()
