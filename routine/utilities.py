@@ -106,3 +106,9 @@ def df_to_numeric(df):
     for c in df.columns:
         df[c] = pd.to_numeric(df[c], errors="ignore")
     return df
+
+
+def compute_fps(df, tcol="SystemTimestamp", ledcol="LedState", mul_fac=1):
+    nled = (df[ledcol].count() > 5).sum()
+    mdf = df[tcol].diff().mean()
+    return 1 / mdf * mul_fac * nled
