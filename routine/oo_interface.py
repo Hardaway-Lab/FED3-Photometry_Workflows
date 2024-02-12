@@ -2,6 +2,7 @@ import io
 import itertools as itt
 import os
 
+import numpy as np
 import pandas as pd
 import panel as pn
 from ipyfilechooser import FileChooser
@@ -11,7 +12,7 @@ from ipywidgets import Layout, widgets
 from .plotting import plot_events, plot_peaks, plot_signals
 from .processing import find_pks, photobleach_correction
 from .ts_alignment import align_ts, label_bout
-from .utilities import load_data, pool_events
+from .utilities import compute_fps, load_data, pool_events
 
 
 class NPMBase:
@@ -337,52 +338,63 @@ class NPMPooling(NPMBase):
         print("Pooling initialized")
 
     def set_evt_range(self, evt_range: tuple = None) -> None:
+        assert self.data is not None, "Please set data first!"
+        self.fps = compute_fps(self.data)
+        print("Assuming Framerate of {:.2f}".format(self.fps))
         if evt_range is None:
             txt_evt_range = widgets.Label(
-                "Number of Frames to Include Before and After Event"
+                "Time (seconds) to Include Before and After Event"
             )
-            w_evt_range = widgets.IntRangeSlider(
-                value=(-500, 500),
-                min=-1000,
-                max=1000,
-                step=1,
-                tooltip="Use the markers to specify the number of frames before and after each timestamp",
+            w_evt_range = widgets.FloatRangeSlider(
+                value=(-10, 10),
+                min=-100,
+                max=100,
+                step=0.01,
+                tooltip="Use the markers to specify the time (seconds) before and after each event",
                 **self.wgt_opts,
             )
-            self.param_evt_range = (-500, 500)
+            self.param_evt_range = tuple(
+                np.around(np.array((-10, 10)) * self.fps).astype(int)
+            )
             w_evt_range.observe(self.on_evt_range, names="value")
             display(widgets.VBox([txt_evt_range, w_evt_range]))
         else:
             self.param_evt_range = evt_range
 
     def on_evt_range(self, change) -> None:
-        self.param_evt_range = change["new"]
+        self.param_evt_range = tuple(
+            np.around(np.array(change["new"]) * self.fps).astype(int)
+        )
 
     def set_evt_sep(self, evt_sep: float = None) -> None:
         if evt_sep is None:
-            w_txt = widgets.Label("Minimum seperation between events")
-            w_evt_sep = widgets.FloatSlider(min=0, value=1, max=10, **self.wgt_opts)
-            self.param_evt_sep = 1
+            w_txt = widgets.Label("Minimum seperation between events (seconds)")
+            w_evt_sep = widgets.FloatSlider(
+                min=0, value=0, max=10, step=0.01, **self.wgt_opts
+            )
+            self.param_evt_sep = 0
             w_evt_sep.observe(self.on_evt_sep, names="value")
             display(widgets.VBox([w_txt, w_evt_sep]))
         else:
             self.param_evt_sep = evt_sep
 
     def on_evt_sep(self, change) -> None:
-        self.param_evt_sep = int(change["new"])
+        self.param_evt_sep = float(change["new"])
 
     def set_evt_duration(self, evt_duration: float = None) -> None:
         if evt_duration is None:
-            w_txt = widgets.Label("Minimum duration events")
-            w_evt_dur = widgets.FloatSlider(min=0, value=1, max=10, **self.wgt_opts)
-            self.param_evt_duration = 1
+            w_txt = widgets.Label("Minimum duration of events (seconds)")
+            w_evt_dur = widgets.FloatSlider(
+                min=0, value=0, max=10, step=0.01, **self.wgt_opts
+            )
+            self.param_evt_duration = 0
             w_evt_dur.observe(self.on_evt_dur, names="value")
             display(widgets.VBox([w_txt, w_evt_dur]))
         else:
             self.param_evt_duration = evt_duration
 
     def on_evt_dur(self, change) -> None:
-        self.param_evt_duration = int(change["new"])
+        self.param_evt_duration = float(change["new"])
 
     def set_roi(self, roi_dict: dict = None) -> None:
         assert self.data is not None, "Please set data first!"
@@ -410,7 +422,7 @@ class NPMPooling(NPMBase):
             self.param_evt_sep,
             self.param_evt_duration,
         )
-        fig = plot_events(self.evtdf, list(self.param_roi_dict.values()))
+        fig = plot_events(self.evtdf, list(self.param_roi_dict.values()), fps=self.fps)
         fig.write_html(os.path.join(self.fig_path, "events.html"))
         display(fig)
 

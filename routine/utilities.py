@@ -90,7 +90,7 @@ def pool_events(
         data["evt_id"] = data["evt_id"].astype("object")
         for evt, evt_df in data.loc[evt_idx].groupby("event"):
             tdiff = evt_df[evt_ts].diff().fillna(evt_sep + 1)
-            sep = tdiff > evt_sep
+            sep = tdiff >= evt_sep
             sep_idx = sep[sep].index
             for start_idx, end_idx in zip(
                 sep_idx, np.append(sep_idx[1:] - 1, evt_df.index[-1])
@@ -139,7 +139,7 @@ def df_to_numeric(df):
     return df
 
 
-def compute_fps(df, tcol="SystemTimestamp", ledcol="LedState", mul_fac=1):
+def compute_fps(df, tcol="ts_fp", ledcol="LedState", mul_fac=1):
     nled = (df[ledcol].count() > 5).sum()
     mdf = df[tcol].diff().mean()
-    return 1 / mdf * mul_fac * nled
+    return float(1 / mdf * mul_fac * nled)
