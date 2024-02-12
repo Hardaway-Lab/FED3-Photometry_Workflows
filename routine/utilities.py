@@ -96,8 +96,8 @@ def pool_events(
                 sep_idx, np.append(sep_idx[1:] - 1, evt_df.index[-1])
             ):
                 seg = evt_df.loc[start_idx:end_idx]
-                if seg[evt_ts].max() - seg[evt_ts].min() > evt_duration:
-                    data.loc[start_idx:end_idx, "evt_id"] = (
+                if seg[evt_ts].max() - seg[evt_ts].min() >= evt_duration:
+                    data.loc[seg.index[0] : seg.index[-1], "evt_id"] = (
                         evt + "-" + seg["fm_fp"].min().astype(str)
                     )
     else:
