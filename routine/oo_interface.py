@@ -8,8 +8,15 @@ import panel as pn
 from ipyfilechooser import FileChooser
 from IPython.display import display
 from ipywidgets import Layout, widgets
+from plotly.colors import qualitative
 
-from .plotting import plot_events, plot_peaks, plot_signals
+from .plotting import (
+    construct_cmap,
+    plot_events,
+    plot_peaks,
+    plot_pooled_signal,
+    plot_signals,
+)
 from .processing import find_pks, photobleach_correction
 from .ts_alignment import align_ts, label_bout
 from .utilities import compute_fps, load_data, pool_events
@@ -422,8 +429,20 @@ class NPMPooling(NPMBase):
             self.param_evt_sep,
             self.param_evt_duration,
         )
-        fig = plot_events(self.evtdf, list(self.param_roi_dict.values()), fps=self.fps)
+        cmap = construct_cmap(self.evtdf["evt_id"].unique(), qualitative.Plotly)
+        fig = plot_events(
+            self.data,
+            self.evtdf,
+            list(self.param_roi_dict.values()),
+            ts_col="ts_fp",
+            cmap=cmap,
+        )
+        display(fig)
         fig.write_html(os.path.join(self.fig_path, "events.html"))
+        fig = plot_pooled_signal(
+            self.evtdf, list(self.param_roi_dict.values()), fps=self.fps, cmap=cmap
+        )
+        fig.write_html(os.path.join(self.fig_path, "pooled_signals.html"))
         display(fig)
 
     def export_data(self) -> None:

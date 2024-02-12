@@ -1,3 +1,5 @@
+import itertools as itt
+
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -5,6 +7,10 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from .utilities import enumerated_product
+
+
+def construct_cmap(keys, cmap):
+    return {k: c for k, c in zip(keys, itt.cycle(cmap))}
 
 
 def plot_signals(data, rois, fps=30, default_window=None, group_dict=None):
@@ -31,7 +37,7 @@ def plot_signals(data, rois, fps=30, default_window=None, group_dict=None):
     return fig
 
 
-def plot_events(evt_df, rois, fps=30):
+def plot_pooled_signal(evt_df, rois, fps=30, cmap=None):
     id_vars = ["fm_evt", "evt_id", "event"]
     evt_df = (
         evt_df[id_vars + rois]
@@ -46,8 +52,9 @@ def plot_events(evt_df, rois, fps=30):
         color="evt_id",
         facet_row="event",
         facet_col="roi",
+        color_discrete_map=cmap,
     )
-    fig.update_layout(height=180 * evt_df["event"].nunique())
+    fig.update_layout(title="Pooled Signals", height=180 * evt_df["event"].nunique())
     return fig
 
 
@@ -101,25 +108,33 @@ def facet_plotly(
     return fig, layout
 
 
-def construct_layout(row_crd, col_crd, row_name="", col_name="", **kwargs):
+def construct_layout(row_crd=None, col_crd=None, row_name="", col_name="", **kwargs):
+    if row_crd is None:
+        row_crd = [None]
+    if col_crd is None:
+        col_crd = [None]
     layout_ls = []
     for (ir, ic), (r, c) in enumerated_product(row_crd, col_crd):
         tt = ""
-        if row_name:
-            tt = tt + row_name + ": " + r
-        else:
-            tt = tt + r
-        tt + " "
-        if col_name:
-            tt = tt + col_name + ": " + c
-        else:
-            tt = tt + c
+        if r:
+            if row_name:
+                tt = tt + row_name + ": " + r
+            else:
+                tt = tt + r
+            tt + " "
+        if c:
+            if col_name:
+                tt = tt + col_name + ": " + c
+            else:
+                tt = tt + c
         layout_ls.append(
             {"row": ir, "col": ic, "row_label": r, "col_label": c, "title": tt}
         )
     layout = pd.DataFrame(layout_ls)
     nrow, ncol = len(row_crd), len(col_crd)
-    fig = make_subplots(rows=nrow, cols=ncol, subplot_titles=layout["title"].values)
+    fig = make_subplots(
+        rows=nrow, cols=ncol, subplot_titles=layout["title"].values, **kwargs
+    )
     return fig, layout
 
 
@@ -169,4 +184,43 @@ def plot_peaks(data, rois, fps=30, default_window=None):
                 row=ly["row"] + 1,
                 col=ly["col"] + 1,
             )
+    return fig
+
+
+def plot_events(data, evtdf, rois, cmap=None, ts_col="SystemTimestamp"):
+    t0 = data[ts_col].min()
+    data["t"] = data[ts_col] - t0
+    evtdf["t"] = evtdf[ts_col] - t0
+    fig, layout = construct_layout(
+        rois, row_name="roi", shared_xaxes=True, x_title="Time (s)"
+    )
+    for roi, ly in layout.groupby("row_label"):
+        ly = ly.squeeze()
+        if len(data) > 0:
+            fig.add_trace(
+                go.Scatter(
+                    x=data["t"],
+                    y=data[roi],
+                    mode="lines",
+                    name="signal",
+                    showlegend=False,
+                    line={"color": "#404040", "width": 1.5},
+                ),
+                row=ly["row"] + 1,
+                col=ly["col"] + 1,
+            )
+    for evt_id, dat in evtdf.groupby("evt_id"):
+        if cmap is not None:
+            fc = cmap[evt_id]
+        else:
+            fc = "gray"
+        fig.add_vrect(
+            x0=dat["t"].min(),
+            x1=dat["t"].max(),
+            annotation_text=evt_id,
+            fillcolor=fc,
+            opacity=0.7,
+            line_width=0,
+        )
+    fig.update_layout(title="Events")
     return fig
