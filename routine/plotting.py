@@ -2,15 +2,24 @@ import itertools as itt
 
 import numpy as np
 import pandas as pd
+import panel as pn
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.colors import convert_colors_to_same_type, qualitative, unlabel_rgb
 from plotly.subplots import make_subplots
 
 from .utilities import enumerated_product
 
+pn.extension("plotly")
 
-def construct_cmap(keys, cmap):
+
+def construct_cmap(keys, cmap=qualitative.Plotly):
     return {k: c for k, c in zip(keys, itt.cycle(cmap))}
+
+
+def add_alpha(col, alpha):
+    col = unlabel_rgb(convert_colors_to_same_type(col)[0][0])
+    return "rgba({},{},{},{})".format(*col, alpha)
 
 
 def plot_signals(data, rois, fps=30, default_window=None, group_dict=None):
@@ -121,7 +130,7 @@ def construct_layout(row_crd=None, col_crd=None, row_name="", col_name="", **kwa
                 tt = tt + row_name + ": " + r
             else:
                 tt = tt + r
-            tt + " "
+            tt = tt + ", "
         if c:
             if col_name:
                 tt = tt + col_name + ": " + c
@@ -190,6 +199,8 @@ def plot_peaks(data, rois, ts_col="SystemTimestamp", default_window=None):
 
 
 def plot_events(data, evtdf, rois, cmap=None, ts_col="SystemTimestamp"):
+    data = data.copy()
+    evtdf = evtdf.copy()
     t0 = data[ts_col].min()
     data["t"] = data[ts_col] - t0
     evtdf["t"] = evtdf[ts_col] - t0
@@ -226,3 +237,77 @@ def plot_events(data, evtdf, rois, cmap=None, ts_col="SystemTimestamp"):
         )
     fig.update_layout(title="Events")
     return fig
+
+
+def plot_agg_polled(data):
+    data = data.melt(
+        id_vars=["event_type", "event", "evt_id", "evt_phase", "roi"], var_name="metric"
+    )
+    tb_ls = []
+    cmap = construct_cmap(data["evt_id"].unique())
+    cmap_alpha = {k: add_alpha(c, 0.3) for k, c in cmap.items()}
+    for met, met_df in data.groupby("metric"):
+        fig, layout = construct_layout(
+            met_df["event"].unique(),
+            met_df["roi"].unique(),
+            row_name="event",
+            col_name="roi",
+        )
+        show_leg = {k: True for k in cmap.keys()}
+        met_df["evt_phase"] = pd.Categorical(
+            met_df["evt_phase"], ["before", "during", "after"]
+        )
+        met_df = met_df.sort_values(
+            ["event_type", "event", "roi", "evt_id", "evt_phase"]
+        ).set_index(["event", "roi"])
+        for (evt, roi), ly in layout.groupby(["row_label", "col_label"]):
+            dat_sub = met_df.loc[evt, roi]
+            ly = ly.squeeze()
+            dat_bar = (
+                dat_sub.groupby("evt_phase", observed=True)["value"]
+                .agg(["mean", "sem"])
+                .reset_index()
+            )
+            fig.add_trace(
+                go.Bar(
+                    x=dat_bar["evt_phase"],
+                    y=dat_bar["mean"],
+                    error_y={
+                        "type": "data",
+                        "array": dat_bar["sem"],
+                        "color": "#404040",
+                        "thickness": 3,
+                        "width": 10,
+                    },
+                    marker={
+                        "color": "rgba(0,0,0,0.2)",
+                        "line": {"color": "#404040", "width": 2},
+                    },
+                    showlegend=False,
+                ),
+                row=ly["row"] + 1,
+                col=ly["col"] + 1,
+            )
+            for evtid, d in dat_sub.groupby("evt_id"):
+                fig.add_trace(
+                    go.Scatter(
+                        x=d["evt_phase"],
+                        y=d["value"],
+                        name=evtid,
+                        mode="lines+markers",
+                        legendgroup=evtid,
+                        showlegend=show_leg[evtid],
+                        marker={
+                            "color": cmap_alpha[evtid],
+                            "size": 10,
+                            "line": {"color": cmap[evtid], "width": 1.8},
+                        },
+                        line={"color": cmap[evtid], "dash": "dot", "width": 1.2},
+                    ),
+                    row=ly["row"] + 1,
+                    col=ly["col"] + 1,
+                )
+                show_leg[evtid] = False
+        fig.update_layout(height=300 * layout["row_label"].nunique())
+        tb_ls.append((met, pn.pane.Plotly(fig, sizing_mode="stretch_width")))
+    return pn.Tabs(*tb_ls, dynamic=True)

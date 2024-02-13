@@ -47,6 +47,7 @@ def poll_events(
         )
         dat_sub = data[data["fm_fp"].between(*fm_range)].copy()
         dat_sub["fm_evt"] = dat_sub["fm_fp"] - fm0
+        dat_sub["event_type"] = seg["event_type"].dropna().unique().item()
         dat_sub["event"] = seg["event"].dropna().unique().item()
         dat_sub["evt_id"] = evt_id
         dat_sub.loc[dat_sub["fm_fp"] < fm0, "evt_phase"] = "before"
@@ -63,3 +64,30 @@ def poll_events(
         evt_df.append(dat_sub)
     evt_df = pd.concat(evt_df, ignore_index=True)
     return evt_df
+
+
+def agg_polled_events(data, rois, ts_col="ts_fp"):
+    agg_df = []
+    for (evt_type, evt, evt_id, evt_phase), evtdat in data.groupby(
+        ["event_type", "event", "evt_id", "evt_phase"]
+    ):
+        for roi in rois:
+            agg_dat = pd.Series(
+                {
+                    "event_type": evt_type,
+                    "event": evt,
+                    "evt_id": evt_id,
+                    "evt_phase": evt_phase,
+                    "roi": roi,
+                    "mean": evtdat[roi].mean(),
+                    "AUC": evtdat[roi].sum(),
+                }
+            )
+            pk_col = roi + "-pks"
+            if pk_col in evtdat.columns:
+                dur = np.ptp(evtdat[ts_col])
+                agg_dat = pd.concat(
+                    [agg_dat, pd.Series({"pk_freq": evtdat[pk_col].sum() / dur})]
+                )
+            agg_df.append(agg_dat)
+    return pd.concat(agg_df, axis="columns", ignore_index=True).T

@@ -12,12 +12,13 @@ from plotly.colors import qualitative
 
 from .plotting import (
     construct_cmap,
+    plot_agg_polled,
     plot_events,
     plot_peaks,
     plot_polled_signal,
     plot_signals,
 )
-from .polling import poll_events
+from .polling import agg_polled_events, poll_events
 from .processing import find_pks, photobleach_correction
 from .ts_alignment import align_ts, label_bout
 from .utilities import compute_fps, load_data
@@ -446,10 +447,19 @@ class NPMPolling(NPMBase):
         fig.write_html(os.path.join(self.fig_path, "pooled_signals.html"))
         display(fig)
 
+    def agg_polled_events(self) -> None:
+        self.evt_agg = agg_polled_events(self.evtdf, list(self.param_roi_dict.values()))
+        fig = plot_agg_polled(self.evt_agg)
+        display(fig)
+
     def export_data(self) -> None:
-        assert self.evtdf is not None, "Please pool events first!"
-        ds_path = os.path.join(self.out_path, "events")
+        assert self.evtdf is not None, "Please poll events first!"
+        assert self.evt_agg is not None, "Please aggregate polled events first!"
+        ds_path = os.path.join(self.out_path, "polled")
         os.makedirs(ds_path, exist_ok=True)
-        dpath = os.path.join(ds_path, "master.csv")
+        dpath = os.path.join(ds_path, "events.csv")
         self.evtdf.to_csv(dpath, index=False)
+        print("data saved to {}".format(dpath))
+        dpath = os.path.join(ds_path, "aggregated.csv")
+        self.evt_agg.to_csv(dpath, index=False)
         print("data saved to {}".format(dpath))
