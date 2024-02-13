@@ -37,7 +37,7 @@ def plot_signals(data, rois, fps=30, default_window=None, group_dict=None):
     return fig
 
 
-def plot_pooled_signal(evt_df, rois, fps=30, cmap=None):
+def plot_polled_signal(evt_df, rois, fps=30, cmap=None):
     id_vars = ["fm_evt", "evt_id", "event"]
     evt_df = (
         evt_df[id_vars + rois]
@@ -54,7 +54,7 @@ def plot_pooled_signal(evt_df, rois, fps=30, cmap=None):
         facet_col="roi",
         color_discrete_map=cmap,
     )
-    fig.update_layout(title="Pooled Signals", height=180 * evt_df["event"].nunique())
+    fig.update_layout(title="Polled Signals", height=180 * evt_df["event"].nunique())
     return fig
 
 

@@ -14,12 +14,13 @@ from .plotting import (
     construct_cmap,
     plot_events,
     plot_peaks,
-    plot_pooled_signal,
+    plot_polled_signal,
     plot_signals,
 )
+from .polling import poll_events
 from .processing import find_pks, photobleach_correction
 from .ts_alignment import align_ts, label_bout
-from .utilities import compute_fps, load_data, pool_events
+from .utilities import compute_fps, load_data
 
 
 class NPMBase:
@@ -336,7 +337,7 @@ class NPMAlign(NPMBase):
         print("data saved to {}".format(fpath))
 
 
-class NPMPooling(NPMBase):
+class NPMPolling(NPMBase):
     def __init__(self, fig_path="./figs/process", out_path="./output/process") -> None:
         super().__init__(fig_path, out_path)
         self.param_evt_range = None
@@ -421,8 +422,8 @@ class NPMPooling(NPMBase):
         rois = change["new"]
         self.param_roi_dict = {r: r for r in rois}
 
-    def pool_events(self) -> None:
-        self.evtdf = pool_events(
+    def poll_events(self) -> None:
+        self.evtdf = poll_events(
             self.data,
             self.param_evt_range,
             list(self.param_roi_dict.values()),
@@ -439,7 +440,7 @@ class NPMPooling(NPMBase):
         )
         display(fig)
         fig.write_html(os.path.join(self.fig_path, "events.html"))
-        fig = plot_pooled_signal(
+        fig = plot_polled_signal(
             self.evtdf, list(self.param_roi_dict.values()), fps=self.fps, cmap=cmap
         )
         fig.write_html(os.path.join(self.fig_path, "pooled_signals.html"))
