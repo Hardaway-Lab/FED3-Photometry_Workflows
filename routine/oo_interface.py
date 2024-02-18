@@ -449,7 +449,11 @@ class NPMPolling(NPMBase):
 
     def agg_polled_events(self) -> None:
         self.evt_agg = agg_polled_events(self.evtdf, list(self.param_roi_dict.values()))
-        fig = plot_agg_polled(self.evt_agg)
+        fig, figs = plot_agg_polled(self.evt_agg)
+        for met, cur_fig in figs.items():
+            cur_fig.write_html(
+                os.path.join(self.fig_path, "polled_signals-{}.html".format(met))
+            )
         display(fig)
 
     def export_data(self) -> None:

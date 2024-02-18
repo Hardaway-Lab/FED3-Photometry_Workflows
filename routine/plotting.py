@@ -244,6 +244,7 @@ def plot_agg_polled(data):
         id_vars=["event_type", "event", "evt_id", "evt_phase", "roi"], var_name="metric"
     )
     tb_ls = []
+    figs_dict = dict()
     cmap = construct_cmap(data["evt_id"].unique())
     cmap_alpha = {k: add_alpha(c, 0.3) for k, c in cmap.items()}
     for met, met_df in data.groupby("metric"):
@@ -309,5 +310,6 @@ def plot_agg_polled(data):
                 )
                 show_leg[evtid] = False
         fig.update_layout(height=300 * layout["row_label"].nunique())
+        figs_dict[met] = fig
         tb_ls.append((met, pn.pane.Plotly(fig, sizing_mode="stretch_width")))
-    return pn.Tabs(*tb_ls, dynamic=True)
+    return pn.Tabs(*tb_ls, dynamic=True), figs_dict
