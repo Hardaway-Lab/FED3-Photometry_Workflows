@@ -63,7 +63,7 @@ def plot_polled_signal(evt_df, rois, fps=30, cmap=None):
         facet_col="roi",
         color_discrete_map=cmap,
     )
-    fig.update_layout(title="Polled Signals", height=180 * evt_df["event"].nunique())
+    fig.update_layout(title="Polled Signals", height=300 * evt_df["event"].nunique())
     return fig
 
 
