@@ -2,6 +2,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
+from scipy.ndimage import median_filter
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
 from sklearn.linear_model import HuberRegressor
@@ -9,7 +10,9 @@ from sklearn.linear_model import HuberRegressor
 from .utilities import exp2, min_transform
 
 
-def photobleach_correction(data, baseline_sig, rois=None, min_trans=False):
+def photobleach_correction(
+    data, baseline_sig, rois=None, min_trans=False, med_wnd=None
+):
     # auto set rois
     if rois is None:
         rois = list(
@@ -41,7 +44,12 @@ def photobleach_correction(data, baseline_sig, rois=None, min_trans=False):
         dat_fit = data.loc[data["signal"] == base_sig, base_roi]
         x = np.linspace(0, 1, len(dat_fit))
         base_fit = fit_exp2(dat_fit, x)
-        base_df[base_roi] = base_fit
+        if med_wnd is not None:
+            base_df[base_roi] = median_filter(
+                dat_fit - base_fit, med_wnd, mode="nearest"
+            )
+        else:
+            base_df[base_roi] = base_fit
         base_dfs[base_sig] = base_df
     # correct signals
     sig_dfs = dict()
@@ -53,6 +61,10 @@ def photobleach_correction(data, baseline_sig, rois=None, min_trans=False):
             sig_df["signal"] = sig + "-norm"
             sig_df[rois] = np.nan
         dat_sig = data.loc[data["signal"] == sig, roi]
+        if med_wnd is not None:
+            x = np.linspace(0, 1, len(dat_sig))
+            sig_fit = fit_exp2(dat_sig, x)
+            dat_sig = dat_sig - sig_fit
         baseline = np.array(base_dfs[base_sig][base_roi])
         model = HuberRegressor()
         model.fit(baseline.reshape((-1, 1)), dat_sig)

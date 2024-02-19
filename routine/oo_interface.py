@@ -88,6 +88,7 @@ class NPMProcess(NPMBase):
         self.param_roi_dict = None
         self.param_base_sig = None
         self.param_ma_wnd = None
+        self.param_base_med_wnd = None
         self.data_norm = None
         print("Process initialized")
 
@@ -202,6 +203,26 @@ class NPMProcess(NPMBase):
     def on_ma_wnd(self, change) -> None:
         self.param_ma_wnd = int(change["new"])
 
+    def set_base_med_wnd(self, wnd: int = None) -> None:
+        if wnd is None:
+            w_txt = widgets.Label("Filter window size (baseline)")
+            w_wnd = widgets.IntSlider(
+                min=5,
+                value=100,
+                max=600,
+                step=1,
+                tooltip="Size of median filter window for baseline smoothing (in frames)",
+                **self.wgt_opts,
+            )
+            self.param_base_med_wnd = 100
+            w_wnd.observe(self.on_base_med_wnd, names="value")
+            display(widgets.VBox([w_txt, w_wnd]))
+        else:
+            self.param_base_med_wnd = wnd
+
+    def on_base_med_wnd(self, change) -> None:
+        self.param_base_med_wnd = int(change["new"])
+
     def load_data(self) -> None:
         assert self.data is not None, "Please set data first!"
         assert self.param_roi_dict is not None, "Please set ROIs first!"
@@ -225,6 +246,7 @@ class NPMProcess(NPMBase):
             self.data,
             self.param_base_sig,
             rois=list(self.param_roi_dict.values()),
+            med_wnd=self.param_base_med_wnd,
             **kwargs,
         )
         fig = plot_signals(
