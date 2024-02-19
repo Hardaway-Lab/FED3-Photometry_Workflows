@@ -9,11 +9,11 @@ from .utilities import enumerated_product
 
 
 def plot_signals(data, rois, fps=30, default_window=None, group_dict=None):
-    dat_long = data[["Timestamp", "signal"] + rois].melt(
-        id_vars=["Timestamp", "signal"], var_name="roi", value_name="raw"
+    dat_long = data[["SystemTimestamp", "signal"] + rois].melt(
+        id_vars=["SystemTimestamp", "signal"], var_name="roi", value_name="raw"
     )
-    t0 = dat_long["Timestamp"].min()
-    dat_long["Time (s)"] = dat_long["Timestamp"] - t0
+    t0 = dat_long["SystemTimestamp"].min()
+    dat_long["Time (s)"] = dat_long["SystemTimestamp"] - t0
     if group_dict is not None:
         dat_long["signal_group"] = dat_long["signal"].map(group_dict)
     else:

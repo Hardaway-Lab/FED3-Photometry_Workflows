@@ -1,4 +1,5 @@
 import io
+import itertools as itt
 import os
 
 import pandas as pd
@@ -60,6 +61,7 @@ class NPMBase:
             display(widgets.HBox([lab, fc]))
         else:
             self.fig_path = fig_path
+            os.makedirs(fig_path, exist_ok=True)
         if out_path is None:
             lab = widgets.Label("Output Path: ", layout=Layout(width="75px"))
             fc = FileChooser(self.out_path, show_only_dirs=True, **self.wgt_opts)
@@ -67,12 +69,15 @@ class NPMBase:
             display(widgets.HBox([lab, fc]))
         else:
             self.out_path = out_path
+            os.makedirs(out_path, exist_ok=True)
 
     def on_figpath(self, fc) -> None:
         self.fig_path = fc.selected_path
+        os.makedirs(self.fig_path, exist_ok=True)
 
     def on_outpath(self, fc) -> None:
         self.out_path = fc.selected_path
+        os.makedirs(self.out_path, exist_ok=True)
 
 
 class NPMProcess(NPMBase):
@@ -144,34 +149,38 @@ class NPMProcess(NPMBase):
                 w.observe(self.on_roi_name, names="value")
                 display(w)
         else:
-            self.param_roi_dict = roi_dict
+            self.param_roi_dict = {k: v.replace("-", "_") for k, v in roi_dict.items()}
 
     def on_roi_name(self, change) -> None:
         k, v = change["owner"].placeholder, change["new"]
-        self.param_roi_dict[k] = v
+        self.param_roi_dict[k] = v.replace("-", "_")
 
-    def set_baseline(self, base_sig: str = None):
+    def set_baseline(self, base_sig: dict = None):
         assert self.data is not None, "Please set data first!"
         if base_sig is None:
-            w_base = widgets.ToggleButtons(
-                value="415nm",
-                options=["415nm", "470nm", "560nm"],
-                description="Channel to use as Reference Signal:",
-                disabled=False,
-                button_style="",
-                tooltips=[
-                    "Best for most recordings",
-                    "Alternative for certain neurotransmitter sensors",
-                    "Alternative for certain red-shifted sensors",
-                ],
-                **self.wgt_opts,
-            )
-            w_base.observe(self.on_baseline, names="value")
-            self.param_base_sig = "415nm"
-            display(w_base)
+            rois = list(self.param_roi_dict.values())
+            sigs = list(set(self.param_led_dict.values()) - set(["initial"]))
+            roi_sig = list(itt.product(rois, sigs))
+            for key_r, key_s in roi_sig:
+                opts = [("-".join(rs), {(key_r, key_s): rs}) for rs in roi_sig]
+                opts = opts + [("No correction", {(key_r, key_s): None})]
+                w_base = widgets.Dropdown(
+                    description="{}-{}: ".format(key_r, key_s),
+                    options=opts,
+                    value={(key_r, key_s): None},
+                    **self.wgt_opts,
+                )
+                w_base.observe(self.on_baseline, names="value")
+                self.param_base_sig = dict()
+                display(w_base)
+        else:
+            self.param_base_sig = base_sig
 
     def on_baseline(self, change) -> None:
-        self.param_base_sig = change["new"]
+        self.param_base_sig.update(change["new"])
+        self.param_base_sig = {
+            k: v for k, v in self.param_base_sig.items() if v is not None
+        }
 
     def set_ma_wnd(self, wnd: int = None) -> None:
         if wnd is None:
@@ -213,17 +222,15 @@ class NPMProcess(NPMBase):
         assert self.param_roi_dict is not None, "Please set ROIs first!"
         assert self.param_base_sig is not None, "Please set baseline signal first!"
         self.data_norm = photobleach_correction(
-            self.data, list(self.param_roi_dict.values()), self.param_base_sig, **kwargs
+            self.data,
+            self.param_base_sig,
+            rois=list(self.param_roi_dict.values()),
+            **kwargs,
         )
         fig = plot_signals(
             self.data_norm,
             list(self.param_roi_dict.values()),
-            group_dict={
-                "415nm": "415nm",
-                "415nm-fit": "415nm",
-                "470nm": "470nm",
-                "470nm-norm": "470nm",
-            },
+            group_dict=lambda s: s.split("-")[0],
         )
         fig.write_html(os.path.join(self.fig_path, "photobleaching_correction.html"))
         nroi = len(self.param_roi_dict)
@@ -235,12 +242,12 @@ class NPMProcess(NPMBase):
             wnd = self.param_ma_wnd
         for sig in apply_to:
             for roi in list(self.param_roi_dict.values()):
-                self.data_norm.loc[
-                    self.data_norm["signal"] == sig, roi
-                ] = moving_average_filter(
-                    self.data_norm.loc[self.data_norm["signal"] == sig, roi],
-                    wnd=wnd,
-                    mode=mode,
+                self.data_norm.loc[self.data_norm["signal"] == sig, roi] = (
+                    moving_average_filter(
+                        self.data_norm.loc[self.data_norm["signal"] == sig, roi],
+                        wnd=wnd,
+                        mode=mode,
+                    )
                 )
 
     def export_data(self, sigs=["415nm", "470nm-norm"]) -> None:
@@ -261,8 +268,8 @@ class NPMAlign(NPMBase):
         self.data_align = None
         print("Alignment initialized")
 
-    def set_ts(self, ts_dict: dict = None, source: str = "local") -> None:
-        if ts_dict is None:
+    def set_ts(self, ts_ls: list = None, source: str = "local") -> None:
+        if ts_ls is None:
             if source == "local":
                 fs = pn.widgets.FileSelector(
                     directory=".",
@@ -283,7 +290,9 @@ class NPMAlign(NPMBase):
                 w_ts.observe(self.on_ts_remote, names="value")
                 display(w_ts)
         else:
-            self.ts_dict = {k: pd.read_csv(t, header=None) for k, t in ts_dict.items()}
+            for ts_path in ts_ls:
+                ts_name, ts = self.load_ts(ts_path)
+                self.ts_dict[ts_name] = ts
 
     def on_ts_remote(self, change) -> None:
         for dfile in change["new"]:
@@ -295,11 +304,20 @@ class NPMAlign(NPMBase):
 
     def on_ts_local(self, event) -> None:
         for dpath in event.new:
-            dname = os.path.split(dpath)[1]
-            self.ts_dict[dname] = pd.read_csv(dpath, header=None)
+            ts_name, ts = self.load_ts(dpath)
+            self.ts_dict[ts_name] = ts
+
+    def load_ts(self, ts_path: str) -> pd.DataFrame:
+        ts_name = os.path.split(ts_path)[1]
+        if ts_name.endswith(".csv"):
+            return ts_name, pd.read_csv(ts_path, header=None)
+        elif ts_path.endswith(".xlsx"):
+            return ts_name, pd.read_excel(ts_path, header=None)
+        else:
+            raise NotImplementedError("Unable to read {}".format(ts_path))
 
     def align_data(self) -> None:
-        # self.data = label_bout(self.data, "Stimulation")
+        # self.data = label_bout(self.data, "Stimulation") # depracated
         self.data_align, self.ts = align_ts(self.data, self.ts_dict)
 
     def export_data(self) -> None:
@@ -378,4 +396,3 @@ class NPMPooling(NPMBase):
         dpath = os.path.join(ds_path, "master.csv")
         self.evtdf.to_csv(dpath, index=False)
         print("data saved to {}".format(dpath))
-
