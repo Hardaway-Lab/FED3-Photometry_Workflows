@@ -299,7 +299,7 @@ class NPMAlign(NPMBase):
             self.ts_dict[dname] = pd.read_csv(dpath, header=None)
 
     def align_data(self) -> None:
-        self.data = label_bout(self.data, "Stimulation")
+        # self.data = label_bout(self.data, "Stimulation")
         self.data_align, self.ts = align_ts(self.data, self.ts_dict)
 
     def export_data(self) -> None:
@@ -378,3 +378,4 @@ class NPMPooling(NPMBase):
         dpath = os.path.join(ds_path, "master.csv")
         self.evtdf.to_csv(dpath, index=False)
         print("data saved to {}".format(dpath))
+
