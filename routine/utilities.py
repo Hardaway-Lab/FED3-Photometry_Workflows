@@ -42,7 +42,7 @@ def load_data(data_file, discard_time, led_dict, roi_dict):
     return data
 
 
-def load_ts(ts):
+def load_ts(ts, fps=30):
     ts = df_to_numeric(ts)
     if len(ts.columns) == 2:
         if pdt.is_object_dtype(ts[0]) and pdt.is_float_dtype(ts[1]):
@@ -73,6 +73,44 @@ def load_ts(ts):
             ts.columns = ["ts_fp", "event", "time"]
             ts["event_type"] = "keydown"
             ts_type = "ts_keydown"
+    elif len(ts.columns) == 5 and ts.iloc[0, 2] == "DigitalIOState":
+        ts_raw = df_to_numeric(ts.iloc[1:].copy())
+        ts_raw.columns = [
+            "DigitalIOName",
+            "DigitalIOFlag",
+            "DigitalIOState",
+            "ts_fp",
+            "ts",
+        ]
+        ts_raw["DigitalIOState"] = ts_raw["DigitalIOState"].map(
+            {"True": True, "False": False}
+        )
+        assert len(ts_raw) % 2 == 0, "Opto timestamps must have even number of rows"
+        ts_df = []
+        for irow in range(0, len(ts_raw), 2):
+            ts_seg = ts_raw.iloc[irow : irow + 2, :]
+            state, col_fp, col_ts = (
+                ts_seg["DigitalIOState"],
+                ts_seg["ts_fp"],
+                ts_seg["ts"],
+            )
+            assert (
+                state.iloc[0] == True and state.iloc[-1] == False
+            ), "Corrupted timestamp at row {}:\n{}".format(irow, ts_seg)
+            nrow = max(int(round(np.ptp(col_fp) * fps)), 1)
+            cur_ts = pd.DataFrame(
+                {
+                    "ts_fp": np.linspace(col_fp.iloc[0], col_fp.iloc[-1], nrow),
+                    "ts": np.linspace(col_ts.iloc[0], col_ts.iloc[-1], nrow),
+                }
+            )
+            cur_ts["event"] = "opto_stim"
+            cur_ts["DigitalIOName"] = ts_seg["DigitalIOName"].unique().item()
+            cur_ts["DigitalIOFlag"] = ts_seg["DigitalIOFlag"].unique().item()
+            ts_df.append(cur_ts)
+        ts = pd.concat(ts_df, ignore_index=True)
+        ts["event_type"] = "opto"
+        ts_type = "ts_opto"
     else:
         raise ValueError("Don't know how to handle TS")
     return ts, ts_type

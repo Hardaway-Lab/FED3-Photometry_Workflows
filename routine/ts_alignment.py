@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from scipy.ndimage import label
 
-from .utilities import load_ts
+from .utilities import compute_fps, load_ts
 
 
 def align_ts(data, ts_files) -> None:
@@ -15,10 +15,12 @@ def align_ts(data, ts_files) -> None:
             "ComputerTimestamp": "ts",
         }
     )
+    fps = compute_fps(data)
+    print("Assuming FPS of {}".format(fps))
     # load input ts
     ts_dict = dict()
     for dname, dat in ts_files.items():
-        dat, ts_type = load_ts(dat.copy())
+        dat, ts_type = load_ts(dat.copy(), fps=fps)
         if ts_type == "ts_fed":
             dat["event"] = dname[:4] + "-" + dat["event"]
         print("Interpreting {} as {}".format(dname, ts_type))
