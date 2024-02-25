@@ -529,6 +529,14 @@ class NPMPolling(NPMBase):
         dpath = os.path.join(ds_path, "events.csv")
         self.evtdf.to_csv(dpath, index=False)
         print("data saved to {}".format(dpath))
+        evt_pvt = self.evtdf.melt(
+            id_vars=["evt_id", "fm_evt"],
+            value_vars=list(self.param_roi_dict.values()),
+            var_name="roi",
+        ).pivot(columns=["roi", "evt_id"], index="fm_evt", values="value")
+        dpath = os.path.join(ds_path, "events_pivot.csv")
+        evt_pvt.to_csv(dpath)
+        print("data saved to {}".format(dpath))
         dpath = os.path.join(ds_path, "aggregated.csv")
         self.evt_agg.to_csv(dpath, index=False)
         print("data saved to {}".format(dpath))
