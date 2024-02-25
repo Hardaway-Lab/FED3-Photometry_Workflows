@@ -104,6 +104,7 @@ def align_ts(data, ts_files) -> None:
     evts_dup = evts[evts["fm_fp"].duplicated(keep=False)]
     if len(evts_dup) > 0:
         warnings.warn("Multiple events mapped to the same FP frame\n" + str(evts_dup))
+        evts = evts.drop_duplicates(subset="fm_fp")
     data = (
         data.merge(evts[["fm_fp", "event", "event_type"]], on="fm_fp", how="outer")
         .sort_values("fm_fp")
