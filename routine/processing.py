@@ -5,6 +5,7 @@ import pandas as pd
 from scipy.ndimage import median_filter
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
+from scipy.stats import zscore
 from sklearn.linear_model import HuberRegressor
 
 from .utilities import exp2, min_transform
@@ -56,10 +57,15 @@ def photobleach_correction(
     for (roi, sig), (base_roi, base_sig) in base_dict.items():
         if sig in sig_dfs:
             sig_df = sig_dfs[sig]
+            norm_df = sig_df.loc[sig_df["signal"] == sig + "-norm"].copy()
+            zs_df = sig_df.loc[sig_df["signal"] == sig + "-norm-zs"].copy()
         else:
-            sig_df = data.loc[data["signal"] == sig].copy()
-            sig_df["signal"] = sig + "-norm"
-            sig_df[rois] = np.nan
+            norm_df = data.loc[data["signal"] == sig].copy()
+            norm_df["signal"] = sig + "-norm"
+            norm_df[rois] = np.nan
+            zs_df = data.loc[data["signal"] == sig].copy()
+            zs_df["signal"] = sig + "-norm-zs"
+            zs_df[rois] = np.nan
         dat_sig = data.loc[data["signal"] == sig, roi]
         if med_wnd is not None:
             x = np.linspace(0, 1, len(dat_sig))
@@ -68,10 +74,11 @@ def photobleach_correction(
         baseline = np.array(base_dfs[base_sig][base_roi])
         model = HuberRegressor()
         model.fit(baseline.reshape((-1, 1)), dat_sig)
-        sig_df[roi] = dat_sig - model.predict(baseline.reshape((-1, 1)))
+        norm_df[roi] = dat_sig - model.predict(baseline.reshape((-1, 1)))
         if min_trans:
-            sig_df[roi] = min_transform(sig_df[roi])
-        sig_dfs[sig] = sig_df
+            norm_df[roi] = min_transform(norm_df[roi])
+        zs_df[roi] = zscore(norm_df[roi])
+        sig_dfs[sig] = pd.concat([norm_df, zs_df])
     data_norm = pd.concat(
         [data] + list(base_dfs.values()) + list(sig_dfs.values()), ignore_index=True
     )
@@ -119,20 +126,20 @@ def compute_dff(data, rois, sigs=["415nm", "470nm"]):
     return pd.concat([data] + res_ls, ignore_index=True)
 
 
-def find_pks(data, rois, prominence, freq_wd, sigs=None):
-    if sigs is not None:
-        data = data[data["signal"].isin(sigs)].copy()
-    res_ls = []
+def find_pks(data, rois, prominence, freq_wd=None, sigs=None):
     for sig, dat_sig in data.groupby("signal"):
-        for roi in rois:
-            dat = dat_sig[roi]
-            pks, props = find_peaks(dat, prominence=prominence)
-            pvec = np.zeros_like(dat, dtype=bool)
-            pvec[pks] = 1
-            dat_sig[roi + "-pks"] = pvec
-            dat_sig[roi + "-freq"] = dat_sig[roi + "-pks"].rolling(freq_wd).sum()
-        res_ls.append(dat_sig)
-    return pd.concat(res_ls, ignore_index=True)
+        if sigs is not None and sig in sigs:
+            for roi in rois:
+                dat = dat_sig[roi]
+                pks, props = find_peaks(dat, prominence=prominence)
+                pvec = np.zeros_like(dat, dtype=bool)
+                pvec[pks] = 1
+                data.loc[dat_sig.index, roi + "-pks"] = pvec
+                if freq_wd is not None:
+                    dat_sig.loc[dat_sig.index, roi + "-freq"] = (
+                        dat_sig.loc[dat_sig.index, roi + "-pks"].rolling(freq_wd).sum()
+                    )
+    return data
 
 
 def moving_average_filter(x, wnd, mode="same"):

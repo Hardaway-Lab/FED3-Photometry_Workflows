@@ -15,3 +15,4 @@ dependencies:
   - panel
   - jupyterlab == 3
   - openpyxl
+  - jupyter_bokeh

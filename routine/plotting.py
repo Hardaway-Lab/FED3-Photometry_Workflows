@@ -1,11 +1,25 @@
+import itertools as itt
+
 import numpy as np
 import pandas as pd
 import panel as pn
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.colors import convert_colors_to_same_type, qualitative, unlabel_rgb
 from plotly.subplots import make_subplots
 
 from .utilities import enumerated_product
+
+pn.extension("plotly")
+
+
+def construct_cmap(keys, cmap=qualitative.Plotly):
+    return {k: c for k, c in zip(keys, itt.cycle(cmap))}
+
+
+def add_alpha(col, alpha):
+    col = unlabel_rgb(convert_colors_to_same_type(col)[0][0])
+    return "rgba({},{},{},{})".format(*col, alpha)
 
 
 def plot_signals(data, rois, fps=30, default_window=None, group_dict=None):
@@ -32,7 +46,7 @@ def plot_signals(data, rois, fps=30, default_window=None, group_dict=None):
     return fig
 
 
-def plot_events(evt_df, rois, fps=30, tabs=None, norm=None):
+def plot_polled_signal(evt_df, rois, fps=30, tabs=None, norm=None, cmap=None):
     id_vars = ["fm_evt", "evt_id", "event"]
     if norm is not None:
         rois = [r + "-norm" for r in rois]
@@ -58,8 +72,11 @@ def plot_events(evt_df, rois, fps=30, tabs=None, norm=None):
                 color="evt_id",
                 facet_row="roi",
                 facet_col=facet_col,
+                color_discrete_map=cmap,
             )
-            fig.update_layout(height=180 * tb_df["roi"].nunique())
+            fig.update_layout(
+                title="Polled Signals", height=300 * tb_df["roi"].nunique()
+            )
             tb_ls.append((tb_name, pn.pane.Plotly(fig, sizing_mode="stretch_width")))
         return pn.Tabs(*tb_ls, dynamic=True)
     else:
@@ -70,8 +87,11 @@ def plot_events(evt_df, rois, fps=30, tabs=None, norm=None):
             color="evt_id",
             facet_row="event",
             facet_col="roi",
+            color_discrete_map=cmap,
         )
-        fig.update_layout(height=180 * evt_df["event"].nunique())
+        fig.update_layout(
+            title="Polled Signals", height=300 * evt_df["event"].nunique()
+        )
         return fig
 
 
@@ -125,33 +145,43 @@ def facet_plotly(
     return fig, layout
 
 
-def construct_layout(row_crd, col_crd, row_name="", col_name="", **kwargs):
+def construct_layout(row_crd=None, col_crd=None, row_name="", col_name="", **kwargs):
+    if row_crd is None:
+        row_crd = [None]
+    if col_crd is None:
+        col_crd = [None]
     layout_ls = []
     for (ir, ic), (r, c) in enumerated_product(row_crd, col_crd):
         tt = ""
-        if row_name:
-            tt = tt + row_name + ": " + r
-        else:
-            tt = tt + r
-        tt + " "
-        if col_name:
-            tt = tt + col_name + ": " + c
-        else:
-            tt = tt + c
+        if r:
+            if row_name:
+                tt = tt + row_name + ": " + r
+            else:
+                tt = tt + r
+            tt = tt + ", "
+        if c:
+            if col_name:
+                tt = tt + col_name + ": " + c
+            else:
+                tt = tt + c
         layout_ls.append(
             {"row": ir, "col": ic, "row_label": r, "col_label": c, "title": tt}
         )
     layout = pd.DataFrame(layout_ls)
     nrow, ncol = len(row_crd), len(col_crd)
-    fig = make_subplots(rows=nrow, cols=ncol, subplot_titles=layout["title"].values)
+    fig = make_subplots(
+        rows=nrow, cols=ncol, subplot_titles=layout["title"].values, **kwargs
+    )
     return fig, layout
 
 
-def plot_peaks(data, rois, fps=30, default_window=None):
+def plot_peaks(data, rois, ts_col="SystemTimestamp", default_window=None):
     sigs = data["signal"].unique()
-    t0 = data["Timestamp"].min()
-    data["t"] = (data["Timestamp"] - t0) / fps
-    fig, layout = construct_layout(rois, sigs, "roi", "signal", shared_xaxes=True)
+    t0 = data[ts_col].min()
+    data["t"] = data[ts_col] - t0
+    fig, layout = construct_layout(
+        rois, sigs, "roi", "signal", shared_xaxes=True, x_title="Time (s)"
+    )
     for (roi, sig), ly in layout.groupby(["row_label", "col_label"]):
         dat = data[data["signal"] == sig]
         pks = dat[dat[roi + "-pks"]]
@@ -169,18 +199,19 @@ def plot_peaks(data, rois, fps=30, default_window=None):
                 row=ly["row"] + 1,
                 col=ly["col"] + 1,
             )
-            fig.add_trace(
-                go.Scatter(
-                    x=dat["t"],
-                    y=dat[roi + "-freq"],
-                    mode="lines",
-                    name="freq",
-                    legendgroup="freq",
-                    line={"color": "grey"},
-                ),
-                row=ly["row"] + 1,
-                col=ly["col"] + 1,
-            )
+            if roi + "-freq" in dat.columns:
+                fig.add_trace(
+                    go.Scatter(
+                        x=dat["t"],
+                        y=dat[roi + "-freq"],
+                        mode="lines",
+                        name="freq",
+                        legendgroup="freq",
+                        line={"color": "grey"},
+                    ),
+                    row=ly["row"] + 1,
+                    col=ly["col"] + 1,
+                )
             fig.add_trace(
                 go.Scatter(
                     x=pks["t"],
@@ -193,3 +224,120 @@ def plot_peaks(data, rois, fps=30, default_window=None):
                 col=ly["col"] + 1,
             )
     return fig
+
+
+def plot_events(data, evtdf, rois, cmap=None, ts_col="SystemTimestamp"):
+    data = data.copy()
+    evtdf = evtdf.copy()
+    t0 = data[ts_col].min()
+    data["t"] = data[ts_col] - t0
+    evtdf["t"] = evtdf[ts_col] - t0
+    fig, layout = construct_layout(
+        rois, row_name="roi", shared_xaxes=True, x_title="Time (s)"
+    )
+    for roi, ly in layout.groupby("row_label"):
+        ly = ly.squeeze()
+        if len(data) > 0:
+            fig.add_trace(
+                go.Scatter(
+                    x=data["t"],
+                    y=data[roi],
+                    mode="lines",
+                    name="signal",
+                    showlegend=False,
+                    line={"color": "#404040", "width": 1.5},
+                ),
+                row=ly["row"] + 1,
+                col=ly["col"] + 1,
+            )
+    for evt_id, dat in evtdf.groupby("evt_id"):
+        if cmap is not None:
+            fc = cmap[evt_id]
+        else:
+            fc = "gray"
+        fig.add_vrect(
+            x0=dat["t"].min(),
+            x1=dat["t"].max(),
+            annotation_text=evt_id,
+            fillcolor=fc,
+            opacity=0.7,
+            line_width=0,
+        )
+    fig.update_layout(title="Events")
+    return fig
+
+
+def plot_agg_polled(data):
+    data = data.melt(
+        id_vars=["event_type", "event", "evt_id", "evt_phase", "roi"], var_name="metric"
+    )
+    tb_ls = []
+    figs_dict = dict()
+    cmap = construct_cmap(data["evt_id"].unique())
+    cmap_alpha = {k: add_alpha(c, 0.3) for k, c in cmap.items()}
+    for met, met_df in data.groupby("metric"):
+        fig, layout = construct_layout(
+            met_df["event"].unique(),
+            met_df["roi"].unique(),
+            row_name="event",
+            col_name="roi",
+        )
+        show_leg = {k: True for k in cmap.keys()}
+        met_df["evt_phase"] = pd.Categorical(
+            met_df["evt_phase"], ["before", "during", "after"]
+        )
+        met_df = met_df.sort_values(
+            ["event_type", "event", "roi", "evt_id", "evt_phase"]
+        ).set_index(["event", "roi"])
+        for (evt, roi), ly in layout.groupby(["row_label", "col_label"]):
+            dat_sub = met_df.loc[evt, roi]
+            ly = ly.squeeze()
+            dat_bar = (
+                dat_sub.groupby("evt_phase", observed=True)["value"]
+                .agg(["mean", "sem"])
+                .reset_index()
+            )
+            fig.add_trace(
+                go.Bar(
+                    x=dat_bar["evt_phase"],
+                    y=dat_bar["mean"],
+                    error_y={
+                        "type": "data",
+                        "array": dat_bar["sem"],
+                        "color": "#404040",
+                        "thickness": 3,
+                        "width": 10,
+                    },
+                    marker={
+                        "color": "rgba(0,0,0,0.2)",
+                        "line": {"color": "#404040", "width": 2},
+                    },
+                    showlegend=False,
+                ),
+                row=ly["row"] + 1,
+                col=ly["col"] + 1,
+            )
+            for evtid, d in dat_sub.groupby("evt_id"):
+                fig.add_trace(
+                    go.Scatter(
+                        x=d["evt_phase"],
+                        y=d["value"],
+                        name=evtid,
+                        mode="lines+markers",
+                        legendgroup=evtid,
+                        showlegend=show_leg[evtid],
+                        marker={
+                            "color": cmap_alpha[evtid],
+                            "size": 10,
+                            "line": {"color": cmap[evtid], "width": 1.8},
+                        },
+                        line={"color": cmap[evtid], "dash": "dot", "width": 1.2},
+                    ),
+                    row=ly["row"] + 1,
+                    col=ly["col"] + 1,
+                )
+                show_leg[evtid] = False
+        fig.update_layout(height=300 * layout["row_label"].nunique())
+        figs_dict[met] = fig
+        tb_ls.append((met, pn.pane.Plotly(fig, sizing_mode="stretch_width")))
+    return pn.Tabs(*tb_ls, dynamic=True), figs_dict

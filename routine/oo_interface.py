@@ -2,16 +2,26 @@ import io
 import itertools as itt
 import os
 
+import numpy as np
 import pandas as pd
 import panel as pn
 from ipyfilechooser import FileChooser
 from IPython.display import display
 from ipywidgets import Layout, widgets
+from plotly.colors import qualitative
 
-from .plotting import plot_events, plot_signals
-from .processing import moving_average_filter, photobleach_correction
+from .plotting import (
+    construct_cmap,
+    plot_agg_polled,
+    plot_events,
+    plot_peaks,
+    plot_polled_signal,
+    plot_signals,
+)
+from .polling import agg_polled_events, poll_events
+from .processing import find_pks, moving_average_filter, photobleach_correction
 from .ts_alignment import align_ts, label_bout
-from .utilities import load_data, pool_events
+from .utilities import compute_fps, load_data
 
 
 class NPMBase:
@@ -83,7 +93,8 @@ class NPMBase:
 class NPMProcess(NPMBase):
     def __init__(self, fig_path="./figs/process", out_path="./output/process") -> None:
         super().__init__(fig_path, out_path)
-        self.param_nfm_discard = None
+        self.param_discard_time = None
+        self.param_pk_prominence = None
         self.param_led_dict = {7: "initial", 1: "415nm", 2: "470nm", 4: "560nm"}
         self.param_roi_dict = None
         self.param_base_sig = None
@@ -92,28 +103,47 @@ class NPMProcess(NPMBase):
         self.data_norm = None
         print("Process initialized")
 
-    def set_nfm_discard(self, nfm: int = None) -> None:
+    def set_discard_time(self, discard_time: float = None) -> None:
         assert self.data is not None, "Please set data first!"
-        if nfm is None:
+        if discard_time is None:
             w_txt = widgets.Label(
-                "Number of Frames to Discard from Beginning of Recording"
+                "Number of Seconds to Discard from Beginning of Recording"
             )
-            w_nfm = widgets.IntSlider(
+            w_nfm = widgets.FloatSlider(
                 min=0,
                 value=0,
-                max=self.data["FrameCounter"].max(),
-                step=1,
-                tooltip="Cropping data points at the beginning of the recording can improve curve fitting. 100 frames is a good start",
+                max=10,
+                step=0.01,
+                tooltip="Cropping data points at the beginning of the recording can improve curve fitting.",
                 **self.wgt_opts,
             )
-            self.param_nfm_discard = 0
-            w_nfm.observe(self.on_nfm, names="value")
+            self.param_discard_time = 0
+            w_nfm.observe(self.on_discard, names="value")
             display(widgets.VBox([w_txt, w_nfm]))
         else:
-            self.param_nfm_discard = nfm
+            self.param_discard_time = discard_time
 
-    def on_nfm(self, change) -> None:
-        self.param_nfm_discard = int(change["new"])
+    def on_discard(self, change) -> None:
+        self.param_discard_time = float(change["new"])
+
+    def set_pk_prominence(self, prom: int = None) -> None:
+        if prom is None:
+            w_txt = widgets.Label("Peak Prominence")
+            w_pk = widgets.FloatSlider(
+                min=0,
+                value=0.1,
+                max=3,
+                step=0.001,
+                **self.wgt_opts,
+            )
+            self.param_pk_prominence = 0.1
+            w_pk.observe(self.on_pk_prominence, names="value")
+            display(widgets.VBox([w_txt, w_pk]))
+        else:
+            self.param_pk_prominence = prom
+
+    def on_pk_prominence(self, change) -> None:
+        self.param_pk_prominence = change["new"]
 
     def set_roi(self, roi_dict: dict = None) -> None:
         assert self.data is not None, "Please set data first!"
@@ -226,9 +256,9 @@ class NPMProcess(NPMBase):
     def load_data(self) -> None:
         assert self.data is not None, "Please set data first!"
         assert self.param_roi_dict is not None, "Please set ROIs first!"
-        assert self.param_nfm_discard is not None, "Please set frames to discard first!"
+        assert self.param_discard_time is not None, "Please set time to discard first!"
         self.data = load_data(
-            self.data, self.param_nfm_discard, self.param_led_dict, self.param_roi_dict
+            self.data, self.param_discard_time, self.param_led_dict, self.param_roi_dict
         )
         fig = plot_signals(
             self.data, list(self.param_roi_dict.values()), default_window=(0, 10)
@@ -272,7 +302,23 @@ class NPMProcess(NPMBase):
                     )
                 )
 
-    def export_data(self, sigs=["415nm", "470nm-norm"]) -> None:
+    def find_peaks(self) -> None:
+        self.data_norm = find_pks(
+            self.data_norm,
+            rois=list(self.param_roi_dict.values()),
+            prominence=self.param_pk_prominence,
+            sigs=["470nm-norm-zs"],
+        )
+        fig = plot_peaks(
+            self.data_norm[self.data_norm["signal"] == "470nm-norm-zs"].copy(),
+            rois=list(self.param_roi_dict.values()),
+        )
+        fig.write_html(os.path.join(self.fig_path, "peaks.html"))
+        nroi = len(self.param_roi_dict)
+        fig.update_layout(height=350 * nroi)
+        display(fig)
+
+    def export_data(self, sigs=["415nm", "470nm-norm", "470nm-norm-zs"]) -> None:
         assert self.data_norm is not None, "Please process data first!"
         d = self.data_norm
         ds_path = os.path.join(self.out_path, "signals")
@@ -351,33 +397,72 @@ class NPMAlign(NPMBase):
         print("data saved to {}".format(fpath))
 
 
-class NPMPooling(NPMBase):
+class NPMPolling(NPMBase):
     def __init__(self, fig_path="./figs/process", out_path="./output/process") -> None:
         super().__init__(fig_path, out_path)
         self.param_evt_range = None
+        self.param_evt_sep = 1
+        self.param_evt_duration = 1
         print("Pooling initialized")
 
     def set_evt_range(self, evt_range: tuple = None) -> None:
+        assert self.data is not None, "Please set data first!"
+        self.fps = compute_fps(self.data)
+        print("Assuming Framerate of {:.2f}".format(self.fps))
         if evt_range is None:
             txt_evt_range = widgets.Label(
-                "Number of Frames to Include Before and After Event"
+                "Time (seconds) to Include Before and After Event"
             )
-            w_evt_range = widgets.IntRangeSlider(
-                value=(-500, 500),
-                min=-1000,
-                max=1000,
-                step=1,
-                tooltip="Use the markers to specify the number of frames before and after each timestamp",
+            w_evt_range = widgets.FloatRangeSlider(
+                value=(-10, 10),
+                min=-100,
+                max=100,
+                step=0.01,
+                tooltip="Use the markers to specify the time (seconds) before and after each event",
                 **self.wgt_opts,
             )
-            self.param_evt_range = (-500, 500)
+            self.param_evt_range = tuple(
+                np.around(np.array((-10, 10)) * self.fps).astype(int)
+            )
             w_evt_range.observe(self.on_evt_range, names="value")
             display(widgets.VBox([txt_evt_range, w_evt_range]))
         else:
             self.param_evt_range = evt_range
 
     def on_evt_range(self, change) -> None:
-        self.param_evt_range = change["new"]
+        self.param_evt_range = tuple(
+            np.around(np.array(change["new"]) * self.fps).astype(int)
+        )
+
+    def set_evt_sep(self, evt_sep: float = None) -> None:
+        if evt_sep is None:
+            w_txt = widgets.Label("Minimum seperation between events (seconds)")
+            w_evt_sep = widgets.FloatSlider(
+                min=0, value=0, max=10, step=0.01, **self.wgt_opts
+            )
+            self.param_evt_sep = 0
+            w_evt_sep.observe(self.on_evt_sep, names="value")
+            display(widgets.VBox([w_txt, w_evt_sep]))
+        else:
+            self.param_evt_sep = evt_sep
+
+    def on_evt_sep(self, change) -> None:
+        self.param_evt_sep = float(change["new"])
+
+    def set_evt_duration(self, evt_duration: float = None) -> None:
+        if evt_duration is None:
+            w_txt = widgets.Label("Minimum duration of events (seconds)")
+            w_evt_dur = widgets.FloatSlider(
+                min=0, value=0, max=10, step=0.01, **self.wgt_opts
+            )
+            self.param_evt_duration = 0
+            w_evt_dur.observe(self.on_evt_dur, names="value")
+            display(widgets.VBox([w_txt, w_evt_dur]))
+        else:
+            self.param_evt_duration = evt_duration
+
+    def on_evt_dur(self, change) -> None:
+        self.param_evt_duration = float(change["new"])
 
     def set_roi(self, roi_dict: dict = None) -> None:
         assert self.data is not None, "Please set data first!"
@@ -397,24 +482,53 @@ class NPMPooling(NPMBase):
         rois = change["new"]
         self.param_roi_dict = {r: r for r in rois}
 
-    def pool_events(self, tabs=None, **kwargs) -> None:
-        self.evtdf = pool_events(
+    def poll_events(self, tabs=None, **kwargs) -> None:
+        self.evtdf = poll_events(
             self.data,
             self.param_evt_range,
             list(self.param_roi_dict.values()),
+            self.param_evt_sep,
+            self.param_evt_duration,
             **kwargs,
         )
+        cmap = construct_cmap(self.evtdf["evt_id"].unique(), qualitative.Plotly)
         fig = plot_events(
-            self.evtdf, list(self.param_roi_dict.values()), tabs=tabs, **kwargs
+            self.data,
+            self.evtdf,
+            list(self.param_roi_dict.values()),
+            ts_col="ts_fp",
+            cmap=cmap,
+        )
+        display(fig)
+        fig.write_html(os.path.join(self.fig_path, "events.html"))
+        fig = plot_polled_signal(
+            self.evtdf,
+            list(self.param_roi_dict.values()),
+            tabs=tabs,
+            fps=self.fps,
+            cmap=cmap,
         )
         if tabs is None:
-            fig.write_html(os.path.join(self.fig_path, "events.html"))
+            fig.write_html(os.path.join(self.fig_path, "pooled_signals.html"))
+        display(fig)
+
+    def agg_polled_events(self) -> None:
+        self.evt_agg = agg_polled_events(self.evtdf, list(self.param_roi_dict.values()))
+        fig, figs = plot_agg_polled(self.evt_agg)
+        for met, cur_fig in figs.items():
+            cur_fig.write_html(
+                os.path.join(self.fig_path, "polled_signals-{}.html".format(met))
+            )
         display(fig)
 
     def export_data(self) -> None:
-        assert self.evtdf is not None, "Please pool events first!"
-        ds_path = os.path.join(self.out_path, "events")
+        assert self.evtdf is not None, "Please poll events first!"
+        assert self.evt_agg is not None, "Please aggregate polled events first!"
+        ds_path = os.path.join(self.out_path, "polled")
         os.makedirs(ds_path, exist_ok=True)
-        dpath = os.path.join(ds_path, "master.csv")
+        dpath = os.path.join(ds_path, "events.csv")
         self.evtdf.to_csv(dpath, index=False)
+        print("data saved to {}".format(dpath))
+        dpath = os.path.join(ds_path, "aggregated.csv")
+        self.evt_agg.to_csv(dpath, index=False)
         print("data saved to {}".format(dpath))

@@ -23,12 +23,14 @@ def exp2(x, a, b, c, d, e):
     return a * np.exp(b * x) + c * np.exp(d * x) + e
 
 
-def load_data(data_file, discard_nfm, led_dict, roi_dict):
+def load_data(data_file, discard_time, led_dict, roi_dict):
     if isinstance(data_file, pd.DataFrame):
         data = data_file
     else:
         data = pd.read_csv(data_file)
-    data = data[data["FrameCounter"] > discard_nfm].copy()
+    data = data[
+        data["SystemTimestamp"] > data["SystemTimestamp"].min() + discard_time
+    ].copy()
     data["signal"] = data["LedState"].map(led_dict)
     nfm = data.groupby("signal").size().min()
     data = (
@@ -76,45 +78,6 @@ def load_ts(ts):
     return ts, ts_type
 
 
-def pool_events(data, evt_range, rois, norm=None):
-    assert "event" in data.columns, "Please align event timestamps first!"
-    evt_idx = data[data["event"].notnull()].index
-    data.loc[evt_idx, "event"] = data.loc[evt_idx, "event"].astype(str)
-    data.loc[evt_idx, "evt_id"] = (
-        data.loc[evt_idx, "event"] + "-" + data.loc[evt_idx, "fm_fp"].astype(str)
-    )
-    max_fm = data["fm_fp"].max()
-    evt_df = []
-    for idx, row in data[data["evt_id"].notnull()].iterrows():
-        fm = row["fm_fp"]
-        fm_range = tuple((np.array(evt_range) + fm).clip(0, max_fm))
-        dat_sub = data[data["fm_fp"].between(*fm_range)].copy()
-        dat_sub["fm_evt"] = dat_sub["fm_fp"] - fm
-        dat_sub["event"] = row["event"]
-        dat_sub["evt_id"] = row["evt_id"]
-        if norm is not None:
-            for roi in rois:
-                dat_norm = min_transform(dat_sub[roi])
-                mean = dat_norm.loc[dat_sub["fm_evt"] < 0].mean()
-                if norm == "std":
-                    denom = dat_norm.loc[dat_sub["fm_evt"] < 0].std()
-                elif norm == "dff":
-                    denom = mean
-                else:
-                    raise NotImplementedError(
-                        "Norm method has to be ('std', 'dff'), got '{}' instead.".format(
-                            norm
-                        )
-                    )
-                if denom > 0:
-                    dat_sub[roi + "-norm"] = (dat_norm - mean) / denom
-                else:
-                    dat_sub[roi + "-norm"] = np.NaN
-        evt_df.append(dat_sub)
-    evt_df = pd.concat(evt_df, ignore_index=True)
-    return evt_df
-
-
 def enumerated_product(*args):
     yield from zip(itt.product(*(range(len(x)) for x in args)), itt.product(*args))
 
@@ -127,3 +90,9 @@ def df_to_numeric(df):
 
 def min_transform(a):
     return a - np.nanmin(a)
+
+
+def compute_fps(df, tcol="ts_fp", ledcol="LedState", mul_fac=1):
+    nled = (df[ledcol].count() > 5).sum()
+    mdf = df[tcol].diff().mean()
+    return float(1 / mdf * mul_fac * nled)
