@@ -33,6 +33,7 @@ class NPMBase:
         self.data = None
         self.fig_path = fig_path
         self.out_path = out_path
+        self.prefix = None
         os.makedirs(self.fig_path, exist_ok=True)
         os.makedirs(self.out_path, exist_ok=True)
 
@@ -54,14 +55,18 @@ class NPMBase:
                 w_data.observe(self.on_set_data_remote, names="value")
                 display(w_data)
         else:
+            self.prefix = os.path.basename(dpath).split("_")[0]
             self.data = pd.read_csv(dpath)
+            print("Using '{}' as output prefix".format(self.prefix))
 
     def on_set_data_remote(self, change) -> None:
         dat = change["new"][0]["content"].tobytes()
         self.data = pd.read_csv(io.BytesIO(dat), encoding="utf8")
 
     def on_set_data_local(self, fc) -> None:
+        self.prefix = os.path.basename(fc.selected).split("_")[0]
         self.data = pd.read_csv(fc.selected)
+        print("Using '{}' as output prefix".format(self.prefix))
 
     def set_paths(self, fig_path=None, out_path=None) -> None:
         if fig_path is None:
@@ -88,6 +93,21 @@ class NPMBase:
     def on_outpath(self, fc) -> None:
         self.out_path = fc.selected_path
         os.makedirs(self.out_path, exist_ok=True)
+
+    def set_output_prefix(self, prefix: str = None) -> None:
+        if prefix is None:
+            w_pre = widgets.Text(
+                value=self.prefix,
+                description="Output Prefix",
+                **self.wgt_opts,
+            )
+            w_pre.observe(self.on_prefix, names="value")
+            display(w_pre)
+        else:
+            self.prefix = prefix
+
+    def on_prefix(self, change) -> None:
+        self.prefix = change["new"]
 
 
 class NPMProcess(NPMBase):
@@ -321,10 +341,13 @@ class NPMProcess(NPMBase):
     def export_data(self, sigs=["415nm", "470nm-norm", "470nm-norm-zs"]) -> None:
         assert self.data_norm is not None, "Please process data first!"
         d = self.data_norm
-        ds_path = os.path.join(self.out_path, "signals")
-        os.makedirs(ds_path, exist_ok=True)
         for sig in sigs:
-            fpath = os.path.join(ds_path, "{}.csv".format(sig))
+            if self.prefix is not None:
+                fpath = os.path.join(
+                    self.out_path, "{}_{}.csv".format(self.prefix, sig)
+                )
+            else:
+                fpath = os.path.join(self.out_path, "{}.csv".format(sig))
             d[d["signal"] == sig].drop(columns=["signal"]).to_csv(fpath, index=False)
             print("data saved to {}".format(fpath))
 
@@ -390,9 +413,12 @@ class NPMAlign(NPMBase):
 
     def export_data(self) -> None:
         assert self.data_align is not None, "Please align ts first!"
-        ds_path = os.path.join(self.out_path, "aligned")
-        os.makedirs(ds_path, exist_ok=True)
-        fpath = os.path.join(ds_path, "master.csv")
+        if self.prefix is not None:
+            fpath = os.path.join(
+                self.out_path, "{}_alignedevents.csv".format(self.prefix)
+            )
+        else:
+            fpath = os.path.join(self.out_path, "alignedevents.csv")
         self.data_align.to_csv(fpath, index=False)
         print("data saved to {}".format(fpath))
 
@@ -524,19 +550,32 @@ class NPMPolling(NPMBase):
     def export_data(self) -> None:
         assert self.evtdf is not None, "Please poll events first!"
         assert self.evt_agg is not None, "Please aggregate polled events first!"
-        ds_path = os.path.join(self.out_path, "polled")
-        os.makedirs(ds_path, exist_ok=True)
-        dpath = os.path.join(ds_path, "events.csv")
-        self.evtdf.to_csv(dpath, index=False)
-        print("data saved to {}".format(dpath))
+        if self.prefix is not None:
+            fpath = os.path.join(
+                self.out_path, "{}_polledevents.csv".format(self.prefix)
+            )
+        else:
+            fpath = os.path.join(self.out_path, "polledevents.csv")
+        self.evtdf.to_csv(fpath, index=False)
+        print("data saved to {}".format(fpath))
         evt_pvt = self.evtdf.melt(
             id_vars=["evt_id", "fm_evt"],
             value_vars=list(self.param_roi_dict.values()),
             var_name="roi",
         ).pivot(columns=["roi", "evt_id"], index="fm_evt", values="value")
-        dpath = os.path.join(ds_path, "events_pivot.csv")
-        evt_pvt.to_csv(dpath)
-        print("data saved to {}".format(dpath))
-        dpath = os.path.join(ds_path, "aggregated.csv")
-        self.evt_agg.to_csv(dpath, index=False)
-        print("data saved to {}".format(dpath))
+        if self.prefix is not None:
+            fpath = os.path.join(
+                self.out_path, "{}_polledevents_pivot.csv".format(self.prefix)
+            )
+        else:
+            fpath = os.path.join(self.out_path, "polledevents_pivot.csv")
+        evt_pvt.to_csv(fpath)
+        print("data saved to {}".format(fpath))
+        if self.prefix is not None:
+            fpath = os.path.join(
+                self.out_path, "{}_polledevents_agg.csv".format(self.prefix)
+            )
+        else:
+            fpath = os.path.join(self.out_path, "polledevents_agg.csv")
+        self.evt_agg.to_csv(fpath, index=False)
+        print("data saved to {}".format(fpath))
