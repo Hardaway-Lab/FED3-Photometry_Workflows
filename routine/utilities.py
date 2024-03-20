@@ -130,7 +130,8 @@ def min_transform(a):
     return a - np.nanmin(a)
 
 
-def compute_fps(df, tcol="ts_fp", ledcol="LedState", mul_fac=1):
+def compute_fps(df, fm_col="fm_fp", tcol="ts_fp", ledcol="LedState", mul_fac=1):
     nled = (df[ledcol].count() > 5).sum()
     mdf = df[tcol].diff().mean()
-    return float(1 / mdf * mul_fac * nled)
+    mfm = df[fm_col].diff().mean()
+    return float(mfm / mdf * mul_fac * nled)
