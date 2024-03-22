@@ -11,7 +11,7 @@ def poll_events(
     evt_sep=None,
     evt_duration=None,
     evt_ts="ts_fp",
-    norm=None,
+    norm="std",
 ):
     assert "event" in data.columns, "Please align event timestamps first!"
     assert "fm_fp" in data.columns, "Missing photometry frame index"
