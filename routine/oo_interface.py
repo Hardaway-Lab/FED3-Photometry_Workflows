@@ -547,7 +547,7 @@ class NPMPolling(NPMBase):
             )
         display(fig)
 
-    def export_data(self) -> None:
+    def export_data(self, pvt_use_norm=True) -> None:
         assert self.evtdf is not None, "Please poll events first!"
         assert self.evt_agg is not None, "Please aggregate polled events first!"
         if self.prefix is not None:
@@ -558,9 +558,13 @@ class NPMPolling(NPMBase):
             fpath = os.path.join(self.out_path, "polledevents.csv")
         self.evtdf.to_csv(fpath, index=False)
         print("data saved to {}".format(fpath))
+        if pvt_use_norm:
+            val_vars = ["{}-norm".format(r) for r in self.param_roi_dict.values()]
+        else:
+            val_vars = list(self.param_roi_dict.values())
         evt_pvt = self.evtdf.melt(
             id_vars=["evt_id", "fm_evt"],
-            value_vars=list(self.param_roi_dict.values()),
+            value_vars=val_vars,
             var_name="roi",
         ).pivot(columns=["roi", "evt_id"], index="fm_evt", values="value")
         if self.prefix is not None:
