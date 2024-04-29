@@ -11,9 +11,7 @@ from sklearn.linear_model import HuberRegressor
 from .utilities import exp2, min_transform
 
 
-def photobleach_correction(
-    data, baseline_sig, rois=None, min_trans=False, med_wnd=None
-):
+def photobleach_correction(data, baseline_sig, rois=None, min_trans=True, med_wnd=None):
     # auto set rois
     if rois is None:
         rois = list(
