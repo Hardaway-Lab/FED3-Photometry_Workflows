@@ -11,7 +11,24 @@ from sklearn.linear_model import HuberRegressor
 from .utilities import exp2, min_transform
 
 
-def photobleach_correction(data, baseline_sig, rois=None, min_trans=True, med_wnd=None):
+def photobleach_correction(
+    data, baseline_sig, rois=None, min_trans=True, med_wnd=None, method="simple"
+):
+    if method == "simple":
+        if med_wnd is not None:
+            warnings.warn(
+                "med_wnd is set but will be ignored when using 'simple' method"
+            )
+    elif method == "moment_to_moment":
+        assert (
+            med_wnd is not None
+        ), "med_wnd must be set when using 'moment_to_moment' method"
+    else:
+        raise NotImplementedError(
+            "method must be either 'simple' or 'moment_to_moment', got {} instead".format(
+                method
+            )
+        )
     # auto set rois
     if rois is None:
         rois = list(
@@ -43,7 +60,7 @@ def photobleach_correction(data, baseline_sig, rois=None, min_trans=True, med_wn
         dat_fit = data.loc[data["signal"] == base_sig, base_roi]
         x = np.linspace(0, 1, len(dat_fit))
         base_fit = fit_exp2(dat_fit, x)
-        if med_wnd is not None:
+        if method == "moment_to_moment":
             base_df[base_roi] = median_filter(
                 dat_fit - base_fit, med_wnd, mode="nearest"
             )
@@ -65,7 +82,7 @@ def photobleach_correction(data, baseline_sig, rois=None, min_trans=True, med_wn
             zs_df["signal"] = sig + "-norm-zs"
             zs_df[rois] = np.nan
         dat_sig = data.loc[data["signal"] == sig, roi]
-        if med_wnd is not None:
+        if method == "moment_to_moment":
             x = np.linspace(0, 1, len(dat_sig))
             sig_fit = fit_exp2(dat_sig, x)
             dat_sig = dat_sig - sig_fit
