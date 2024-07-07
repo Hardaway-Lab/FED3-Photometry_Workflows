@@ -1,10 +1,12 @@
 import io
 import itertools as itt
 import os
+import warnings
 
 import numpy as np
 import pandas as pd
 import panel as pn
+import plotly.express as px
 from ipyfilechooser import FileChooser
 from IPython.display import display
 from ipywidgets import Layout, widgets
@@ -547,6 +549,54 @@ class NPMPolling(NPMBase):
             )
         display(fig)
 
+    def label_trials(
+        self,
+        t_thres=7,
+        labs={
+            "L_reward": ("WT19-left poke", "WT19-pallet retrieval"),
+            "R_reward": ("WT19-right poke", "WT19-pellet retrieval"),
+            "LL": ("WT19-left poke", "WT19-left poke"),
+            "RR": ("WT19-right poke", "WT19-right poke"),
+            "LR": ("WT19-left poke", "WT19-right poke"),
+        },
+    ):
+        labs_dict = {seq: lab for lab, seq in labs.items()}
+        evts = (
+            self.evtdf[self.evtdf["fm_evt"] == 0]
+            .sort_values("ts_fp")
+            .reset_index(drop=True)
+        )
+        evts["tdiff"] = evts["ts_fp"].diff()
+        evtdf = self.evtdf.set_index("evt_id")
+        trial_df = []
+        for idx, evt_row in evts.iterrows():
+            if evt_row["tdiff"] < t_thres:
+                evt_seq = tuple(evts.loc[idx - 1 : idx, "event"].to_list())
+                try:
+                    lab = labs_dict[evt_seq]
+                except KeyError:
+                    warnings.warn(
+                        "Event sequence within {:.2f} seconds but not labeled: {}".format(
+                            evt_row["tdiff"], evt_seq
+                        )
+                    )
+                    continue
+                evt_id = evts.loc[idx - 1, "evt_id"]
+                cur_df = evtdf.loc[evt_id].reset_index()
+                cur_df["label"] = lab
+                cur_df["evt_id-next"] = evts.loc[idx, "evt_id"]
+                trial_df.append(cur_df)
+        self.trial_df = pd.concat(trial_df, ignore_index=True)
+        fig = px.bar(
+            self.trial_df.groupby("label")["evt_id"]
+            .nunique()
+            .rename("count")
+            .reset_index(),
+            x="label",
+            y="count",
+        )
+        display(fig)
+
     def export_data(self, pvt_use_norm=True) -> None:
         assert self.evtdf is not None, "Please poll events first!"
         assert self.evt_agg is not None, "Please aggregate polled events first!"
@@ -574,6 +624,27 @@ class NPMPolling(NPMBase):
         else:
             fpath = os.path.join(self.out_path, "polledevents_pivot.csv")
         evt_pvt.to_csv(fpath)
+        print("data saved to {}".format(fpath))
+        trial_pvt = (
+            self.trial_df.melt(
+                id_vars=["label", "evt_id", "evt_id-next", "fm_evt"],
+                value_vars=val_vars,
+                var_name="roi",
+            )
+            .sort_values(["roi", "label", "evt_id", "fm_evt"])
+            .pivot(
+                columns=["roi", "label", "evt_id", "evt_id-next"],
+                index="fm_evt",
+                values="value",
+            )
+        )
+        if self.prefix is not None:
+            fpath = os.path.join(
+                self.out_path, "{}_trials_pivot.csv".format(self.prefix)
+            )
+        else:
+            fpath = os.path.join(self.out_path, "trials_pivot.csv")
+        trial_pvt.to_csv(fpath)
         print("data saved to {}".format(fpath))
         if self.prefix is not None:
             fpath = os.path.join(
