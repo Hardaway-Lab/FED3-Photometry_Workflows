@@ -553,14 +553,20 @@ class NPMPolling(NPMBase):
         self,
         t_thres=7,
         labs={
-            "L_reward": ("WT19-left poke", "WT19-pallet retrieval"),
-            "R_reward": ("WT19-right poke", "WT19-pellet retrieval"),
-            "LL": ("WT19-left poke", "WT19-left poke"),
-            "RR": ("WT19-right poke", "WT19-right poke"),
-            "LR": ("WT19-left poke", "WT19-right poke"),
+            (0.002, 0.002): "LL",
+            (0.003, 0.006): "RR",
+            (0.006, 0.006): "RR",
+            (0.002, 0.003): "LRr",
+            (0.002, 0.006): "Lrur",
+            (0.003, 0.001): "R-pellet",
+            (0.001, 0.002): "pellet-L",
+            (0.001, 0.006): "pellet-R",
+            (0.003, 0.002): "RL",
+            (0.006, 0.002): "RL",
+            (0.006, 0.01): "RR-pellet",
         },
+        lab_key="pulsewidth",
     ):
-        labs_dict = {seq: lab for lab, seq in labs.items()}
         evts = (
             self.evtdf[self.evtdf["fm_evt"] == 0]
             .sort_values("ts_fp")
@@ -571,9 +577,9 @@ class NPMPolling(NPMBase):
         trial_df = []
         for idx, evt_row in evts.iterrows():
             if evt_row["tdiff"] < t_thres:
-                evt_seq = tuple(evts.loc[idx - 1 : idx, "event"].to_list())
+                evt_seq = tuple(evts.loc[idx - 1 : idx, lab_key].to_list())
                 try:
-                    lab = labs_dict[evt_seq]
+                    lab = labs[evt_seq]
                 except KeyError:
                     warnings.warn(
                         "Event sequence within {:.2f} seconds but not labeled: {}".format(
