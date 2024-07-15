@@ -7,7 +7,7 @@ from scipy.ndimage import label
 from .utilities import compute_fps, load_ts
 
 
-def align_ts(data, ts_files) -> None:
+def align_ts(data, ts_files, add_cols=["pulsewidth"]) -> None:
     data = data.rename(
         columns={
             "SystemTimestamp": "ts_fp",
@@ -67,6 +67,7 @@ def align_ts(data, ts_files) -> None:
     # align custom events
     evts = []
     for dname, dat in ts_dict.items():
+        acols = list(set(add_cols).intersection(set(dat.columns)))
         if "fm_fp" in dat.columns:
             evts.append(dat[["fm_fp", "event", "event_type"]])
         elif "fm_behav" in dat.columns:
@@ -76,7 +77,7 @@ def align_ts(data, ts_files) -> None:
                 )
                 continue
             dat = dat.merge(data[["fm_fp", "fm_behav"]], on="fm_behav", how="left")
-            evts.append(dat[["fm_fp", "fm_behav", "event", "event_type"]])
+            evts.append(dat[["fm_fp", "fm_behav", "event", "event_type"] + acols])
         elif "ts_fp" in dat.columns:
             if "ts_fp" not in data.columns:
                 warnings.warn(
@@ -86,7 +87,7 @@ def align_ts(data, ts_files) -> None:
             dat = pd.merge_asof(
                 dat, data[["fm_fp", "ts_fp"]], on="ts_fp", direction="nearest"
             )
-            evts.append(dat[["fm_fp", "ts_fp", "event", "event_type"]])
+            evts.append(dat[["fm_fp", "ts_fp", "event", "event_type"] + acols])
         elif "ts" in dat.columns:
             if "ts" not in data.columns:
                 warnings.warn(
@@ -96,7 +97,7 @@ def align_ts(data, ts_files) -> None:
             dat = pd.merge_asof(
                 dat, data[["fm_fp", "ts"]], on="ts", direction="nearest"
             )
-            evts.append(dat[["fm_fp", "ts", "event", "event_type"]])
+            evts.append(dat[["fm_fp", "ts", "event", "event_type"] + acols])
         print("aligned {}".format(dname))
     if not len(evts) > 0:
         return data, ts_dict
@@ -106,7 +107,9 @@ def align_ts(data, ts_files) -> None:
         warnings.warn("Multiple events mapped to the same FP frame\n" + str(evts_dup))
         evts = evts.drop_duplicates(subset="fm_fp")
     data = (
-        data.merge(evts[["fm_fp", "event", "event_type"]], on="fm_fp", how="outer")
+        data.merge(
+            evts[["fm_fp", "event", "event_type"] + acols], on="fm_fp", how="outer"
+        )
         .sort_values("fm_fp")
         .reset_index(drop=True)
     )

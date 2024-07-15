@@ -409,9 +409,9 @@ class NPMAlign(NPMBase):
         else:
             raise NotImplementedError("Unable to read {}".format(ts_path))
 
-    def align_data(self) -> None:
+    def align_data(self, **kwargs) -> None:
         # self.data = label_bout(self.data, "Stimulation") # depracated
-        self.data_align, self.ts = align_ts(self.data, self.ts_dict)
+        self.data_align, self.ts = align_ts(self.data, self.ts_dict, **kwargs)
 
     def export_data(self) -> None:
         assert self.data_align is not None, "Please align ts first!"
