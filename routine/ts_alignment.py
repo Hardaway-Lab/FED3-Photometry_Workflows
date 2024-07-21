@@ -3,6 +3,7 @@ import warnings
 import numpy as np
 import pandas as pd
 from scipy.ndimage import label
+from sklearn.cluster import KMeans
 
 from .utilities import compute_fps, load_ts
 
@@ -120,3 +121,44 @@ def label_bout(data, name) -> pd.DataFrame:
     lb, nlb = label(data[name])
     data[name + "_label"] = lb
     return data
+
+
+def classify_opto(
+    ts: pd.DataFrame,
+    ts_col="SystemTimestamp",
+    filter_col="DigitalIOState",
+    nstim=1,
+    add_lab={"PulseWidth": 0.01},
+) -> pd.DataFrame:
+    ts = ts[ts[filter_col]].copy()
+    t_diff = ts[ts_col].diff()[1:]
+    classifier = KMeans(n_clusters=nstim + 1)
+    t_diff_cls = classifier.fit_predict(t_diff.values.reshape((-1, 1))).squeeze()
+    cls_intvs = classifier.cluster_centers_.squeeze()
+    lab_dict = {
+        i: "{}Hz".format(np.around(1 / intv)) for i, intv in enumerate(cls_intvs)
+    }
+    gap_cls = cls_intvs.argmax()
+    gap_idxs = np.where(t_diff_cls == gap_cls)[0]
+    gap_idxs = np.concatenate([[-1], gap_idxs, [len(ts) + 1]])
+    out_ts = []
+    for s_start, s_stop in zip(gap_idxs[:-1], gap_idxs[1:]):
+        t_start = ts[ts_col].iloc[s_start + 1]
+        labs = pd.Series(t_diff_cls[(s_start + 1) : s_stop]).map(lab_dict)
+        lab_vals = labs.value_counts()
+        if len(lab_vals) > 1:
+            ilab = lab_vals.argmax()
+            cur_lab = lab_vals.index[ilab]
+            warnings.warn(
+                "Inconsistent stimulus period detected.\nValue Counts:\n{}\nOriginal Timestamp:\n{}".format(
+                    lab_vals.rename("count").reset_index(),
+                    ts.iloc[(s_start + 1) : s_stop],
+                )
+            )
+        else:
+            cur_lab = lab_vals.index.item()
+        out_ts.append(
+            pd.DataFrame([{"EventFlag": cur_lab, ts_col: t_start, **add_lab}])
+        )
+    out_ts = pd.concat(out_ts, ignore_index=True)
+    return out_ts
