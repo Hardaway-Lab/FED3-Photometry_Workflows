@@ -31,7 +31,6 @@ Pulse length Event
 5 ms       fall of pellet into magazine
 
 6 ms       auditory cue
-
 7 ms       LED strip activated
 8 ms       open (users can configure these)
 9 ms       open
