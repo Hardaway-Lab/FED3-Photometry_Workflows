@@ -19,12 +19,19 @@ Align photometry data to a multitude of FED3 events by editing the FED3 library 
 It is recommended that you follow these conventions:
 
 Pulse length Event
-1 ms       pellet retrieval  
+
+1 ms       pellet retrieval
+
 2 ms       left poke
+
 3 ms       right poke
+
 4 ms       initiation of FED motor to deliver a pellet
+
 5 ms       fall of pellet into magazine
+
 6 ms       auditory cue
+
 7 ms       LED strip activated
 8 ms       open (users can configure these)
 9 ms       open
