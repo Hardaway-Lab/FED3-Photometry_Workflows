@@ -20,8 +20,7 @@ It is recommended that you follow these conventions:
 
 Pulse length Event
 
-1 ms       pellet retrieval
-
+1 ms       pellet retrieval  
 2 ms       left poke
 
 3 ms       right poke
